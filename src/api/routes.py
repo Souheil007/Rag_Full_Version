@@ -180,7 +180,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
                 s_ret.set_attribute("mode", req.search_type)
                 s_ret.set_output({
                     "count": len(retrieved_docs),
-                    "chunks": [d.get("chunk_text", "")[:150] + "..." for d in retrieved_docs],
+                    "chunks": [d.get("chunk_text", "") for d in retrieved_docs],
                 })
 
             # 2. Prompt Formatting Span
