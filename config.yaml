@@ -32,11 +32,11 @@ vectordb:
 retrieval:
   top_k: 5
   score_threshold: 0.7
-  search_type: "similarity" # Options: similarity, mmr
+  search_type: "hybrid_rerank" # Options: dense, bm25, hybrid, hybrid_rerank
 
 llm:
   provider: "gemini" # Options: gemini, openai, anthropic
-  model_name: "gemini-1.5-flash"
+  model_name: "gemini-2.0-flash"
   temperature: 0.2
   max_output_tokens: 1024
 
