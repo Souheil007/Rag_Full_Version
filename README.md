@@ -17,68 +17,80 @@ This project intentionally avoids heavy wrapper abstractions (like LangChain or 
 
 Here is the exact flow of data and component execution across the two main pipelines: **Document Ingestion** and **RAG Query Execution**.
 
-### 📊 System Workflow Diagram
+### 📊 Visual Architecture Diagram
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant API as FastAPI (routes.py)
-    participant Obs as Telemetry & Monitoring (Tracer / Sentry / Langfuse)
-    participant Ingestion as Ingestion & Chunker
-    participant Emb as Embedder (MiniLM / Gemini / OpenAI)
-    participant DB as VectorDB (ChromaDB) & BM25
-    participant Rank as Hybrid Reranker (RRF + CrossEncoder)
-    participant LLM as LLM Client (Gemini / OpenAI / Anthropic)
+flowchart TD
+    %% Custom Styling
+    classDef input fill:#1E293B,stroke:#0F172A,stroke-width:2px,color:#FFFFFF,font-weight:bold
+    classDef process fill:#F8FAFC,stroke:#64748B,stroke-width:2px,color:#0F172A
+    classDef storage fill:#EFF6FF,stroke:#2563EB,stroke-width:2px,color:#1E3A8A,font-weight:bold
+    classDef llm fill:#FAF5FF,stroke:#9333EA,stroke-width:2px,color:#581C87,font-weight:bold
+    classDef obs fill:#F0FDF4,stroke:#16A34A,stroke-width:2px,color:#14532D,font-weight:bold
 
-    %% 1. Ingestion Workflow
-    rect rgb(240, 245, 255)
-        note over User, DB: 1. Document Ingestion & Indexing Pipeline (POST /index)
-        User->>API: POST /index (dir_path="data")
-        API->>Ingestion: Load documents & split text into overlapping chunks
-        Ingestion-->>API: Chunks list [{chunk_id, chunk_text, metadata}]
-        API->>Emb: embed_batch(chunk_texts)
-        Emb-->>API: Dense vector embeddings
-        API->>DB: Add chunks to ChromaDB & fit Okapi BM25 sparse index
-        DB-->>API: Indexing Complete
-        API-->>User: {"status": "success", "indexed_chunks": N}
+    subgraph PHASE1 ["📥 1. DOCUMENT INGESTION & DUAL INDEXING (POST /index)"]
+        direction TB
+        A1["📄 Raw Documents (.pdf, .txt, .md, .docx)"]:::process --> A2["✂️ Text Chunker (500 chars, 50 overlap)"]:::process
+        A2 --> A3["🧠 Dense Embedder (MiniLM 384d)"]:::process
+        A3 --> A4[("🗄️ ChromaDB (Dense Vector Store)")]:::storage
+        A2 --> A5[("📊 Okapi BM25 Index (Sparse Keyword Search)")]:::storage
     end
 
-    %% 2. Query Workflow
-    rect rgb(255, 245, 240)
-        note over User, LLM: 2. RAG Query & Response Pipeline (POST /query)
-        User->>API: POST /query (query, search_type="hybrid_rerank")
-        API->>Obs: Start root_trace("rag_query_pipeline")
-        
-        %% Step 2a: Retrieval Span
-        API->>Obs: Start span("retrieval")
-        API->>DB: Execute Dense Vector Search (ChromaDB) & Sparse Search (BM25)
-        DB-->>API: Dense Candidates + BM25 Candidates
-        API->>Rank: Merge via Reciprocal Rank Fusion (RRF) & Cross-Encoder Rerank
-        Rank-->>API: Top-K Reranked Context Chunks
-        API->>Obs: End span("retrieval")
+    subgraph PHASE2 ["⚡ 2. HYBRID RETRIEVAL & RE-RANKING (POST /query)"]
+        direction TB
+        B1["❓ User Query"]:::input --> B2{"🔍 Hybrid Retriever Facade"}:::process
+        B2 -->|Dense Semantic Match| B3[("🗄️ ChromaDB")]:::storage
+        B2 -->|Exact Keyword Match| B4[("📊 Okapi BM25")]:::storage
+        B3 & B4 --> B5["🔀 Reciprocal Rank Fusion (RRF)"]:::process
+        B5 --> B6["🎯 Cross-Encoder Re-Ranker"]:::process
+        B6 --> B7["📝 Context-Injected Prompt Formatter"]:::process
+    end
 
-        %% Step 2b: Prompt Formatting Span
-        API->>Obs: Start span("prompt_formatting")
-        API->>API: Format system & user prompt with retrieved context
-        API->>Obs: End span("prompt_formatting")
+    subgraph PHASE3 ["🤖 3. GENERATION & TELEMETRY"]
+        direction TB
+        B7 --> C1["💬 LLM Provider (Gemini / OpenAI / Anthropic)"]:::llm
+        C1 --> C2["💡 Final Grounded Answer + Citations"]:::input
 
-        %% Step 2c: LLM Generation Span
-        API->>Obs: Start span("llm_generation")
-        API->>LLM: generate(prompt, system_prompt)
-        LLM-->>API: Generated Answer String
-        API->>Obs: End span("llm_generation")
-
-        %% Step 2d: Telemetry & Monitoring
-        API->>Obs: Calculate token costs & record P50/P95 latency
-        API->>Obs: Export trace to Local JSONL + Langfuse
-        alt If Exception Occurs
-            API->>Obs: Report stack trace & APM transaction to Sentry
-        end
-
-        API-->>User: QueryResponse {query, search_type, answer, sources, trace_id, latency_ms, estimated_cost_usd}
+        C1 -.-> D1["📊 Langfuse (Traces & Token Costs)"]:::obs
+        C1 -.-> D2["🚨 Sentry (Exceptions & APM)"]:::obs
+        C1 -.-> D3["📁 Local JSONL Logs"]:::obs
     end
 ```
+
+### 🗺️ Text Architecture Overview
+
+```text
+===================================================================================
+                       RAG SYSTEM ARCHITECTURE & DATAFLOW
+===================================================================================
+
+ 📥 INGESTION:   [ 📄 Documents ] ──► [ ✂️ Text Chunker ] ──► [ 🧠 Embedder ]
+                                             │                 │
+                                             ▼                 ▼
+                                   [ 📊 Okapi BM25 ]   [ 🗄️ ChromaDB ]
+                                          (Sparse)           (Dense)
+ ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──│── ── ── ── ── ──│── ── ── ── ── ── ──
+                                             ▼                 ▼
+ ⚡ QUERYING:    [ ❓ User Query ] ──► [ 🔍 Hybrid Search & RRF Fusion ]
+                                             │
+                                             ▼
+                                    [ 🎯 Cross-Encoder Reranker ]
+                                             │
+                                             ▼
+                                    [ 📝 Prompt Formatter ]
+                                             │
+                                             ▼
+ 🤖 GENERATION:                     [ 💬 LLM (Gemini/OpenAI) ]
+                                             │
+                    ┌────────────────────────┴────────────────────────┐
+                    ▼                                                 ▼
+             [ 💡 Grounded Answer ]                   [ 📊 Telemetry & Monitoring ]
+                                                      ├─► Langfuse (Traces & Costs)
+                                                      ├─► Sentry (Exceptions & APM)
+                                                      └─► Local JSONL Logs
+===================================================================================
+```
+
 
 ### ⚙️ Step-by-Step Breakdown
 
