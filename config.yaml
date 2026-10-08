@@ -36,9 +36,10 @@ retrieval:
 
 llm:
   provider: "mistral" # Options: mistral, gemini, openai, anthropic
-  model_name: "mistral-small-latest" # Options: mistral-small-latest, open-mistral-7b, codestral-latest
+  model_name: "open-mistral-7b" # Options: open-mistral-7b, mistral-small-latest, codestral-latest
   temperature: 0.2
   max_output_tokens: 1024
+
 
 
 api:

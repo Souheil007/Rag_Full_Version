@@ -53,9 +53,10 @@ class TestApp(unittest.TestCase):
         """Verify LLMClient initializes Mistral provider without error."""
         from src.llm.llm_client import LLMClient
 
-        client = LLMClient(provider="mistral", model_name="mistral-small-latest")
+        client = LLMClient(provider="mistral", model_name="open-mistral-7b")
         self.assertEqual(client.provider, "mistral")
-        self.assertEqual(client.model_name, "mistral-small-latest")
+        self.assertEqual(client.model_name, "open-mistral-7b")
+
         # Generate mock or real response
         resp = client.generate("Hello Mistral")
         self.assertIsInstance(resp, str)

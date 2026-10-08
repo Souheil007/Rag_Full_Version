@@ -179,11 +179,12 @@ class LLMClient:
         """
         candidate_models = [
             self.model_name,
-            "mistral-small-latest",
             "open-mistral-7b",
             "mistral-tiny",
+            "mistral-small-latest",
             "codestral-latest",
         ]
+
         candidate_models = list(dict.fromkeys(candidate_models))
 
         messages = []
