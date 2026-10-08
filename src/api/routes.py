@@ -1,4 +1,4 @@
-"""FastAPI REST API endpoints for document indexing and querying with hybrid search."""
+"""FastAPI REST API endpoints with distributed tracing and operational metrics."""
 
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException
@@ -7,6 +7,9 @@ from src.chunking.chunker import TextChunker
 from src.embeddings.embedder import Embedder
 from src.ingestion.loader import DocumentLoader
 from src.llm.llm_client import LLMClient
+from src.observability.metrics_collector import MetricsCollector
+from src.observability.span_exporter import SpanExporter
+from src.observability.tracer import Tracer
 from src.prompts.prompt_templates import (
     DEFAULT_RAG_SYSTEM_PROMPT,
     format_rag_prompt,
@@ -36,12 +39,15 @@ class QueryRequest(BaseModel):
 
 
 class QueryResponse(BaseModel):
-    """Response model for query answers and retrieved citations."""
+    """Response model for query answers, citations, and execution telemetry."""
 
     query: str
     search_type: str
     answer: str
     sources: list[dict[str, Any]]
+    trace_id: str
+    latency_ms: float
+    estimated_cost_usd: float
 
 
 class IndexDirectoryRequest(BaseModel):
@@ -65,6 +71,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         title=cfg.get("app", {}).get("name", "RAG Full Version"),
         version=cfg.get("app", {}).get("version", "1.0.0"),
     )
+
+    # Observability & Metrics
+    tracer = Tracer()
+    metrics = MetricsCollector()
+    exporter = SpanExporter()
 
     # Initialize RAG Pipeline components
     loader = DocumentLoader(
@@ -98,9 +109,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         score_threshold=cfg.get("retrieval", {}).get("score_threshold", 0.0),
     )
 
+    model_name = cfg.get("llm", {}).get("model_name", "gemini-2.0-flash")
     llm_client = LLMClient(
         provider=cfg.get("llm", {}).get("provider", "gemini"),
-        model_name=cfg.get("llm", {}).get("model_name", "gemini-1.5-flash"),
+        model_name=model_name,
         temperature=cfg.get("llm", {}).get("temperature", 0.2),
         max_output_tokens=cfg.get("llm", {}).get("max_output_tokens", 1024),
     )
@@ -109,6 +121,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     def health_check() -> dict[str, str]:
         """Health check endpoint to verify server status."""
         return {"status": "ok", "app": cfg.get("app", {}).get("name", "RAG")}
+
+    @app.get("/metrics")
+    def get_metrics() -> dict[str, Any]:
+        """Retrieve operational latency percentiles, error rates, and token costs."""
+        return metrics.get_metrics_snapshot()
 
     @app.post("/index", response_model=dict[str, Any])
     def index_directory(req: IndexDirectoryRequest) -> dict[str, Any]:
@@ -136,22 +153,53 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @app.post("/query", response_model=QueryResponse)
     def query_rag(req: QueryRequest) -> QueryResponse:
-        """Retrieve relevant context using unified retriever and generate answer."""
-        retrieved_docs = retriever.retrieve(
-            query=req.query,
-            top_k=req.top_k,
-            mode=req.search_type,
-            compress=req.compress_context,
-        )
+        """Execute RAG query wrapped in distributed tracing and metrics tracking."""
+        with tracer.trace("rag_query_pipeline") as root_trace:
+            # 1. Retrieval Span
+            with root_trace.span("retrieval") as s_ret:
+                retrieved_docs = retriever.retrieve(
+                    query=req.query,
+                    top_k=req.top_k,
+                    mode=req.search_type,
+                    compress=req.compress_context,
+                )
+                s_ret.set_attribute("chunk_count", len(retrieved_docs))
+                s_ret.set_attribute("mode", req.search_type)
 
-        prompt = format_rag_prompt(req.query, retrieved_docs)
-        answer = llm_client.generate(prompt, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
+            # 2. Prompt Formatting Span
+            with root_trace.span("prompt_formatting"):
+                prompt = format_rag_prompt(req.query, retrieved_docs)
+
+            # 3. LLM Generation Span
+            with root_trace.span("llm_generation") as s_llm:
+                answer = llm_client.generate(prompt, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
+                s_llm.set_attribute("model", model_name)
+
+        summary = root_trace.get_summary()
+        exporter.export(summary)
+
+        # Estimate tokens (approx 4 chars per token)
+        input_tokens = len(prompt) // 4
+        output_tokens = len(answer) // 4
+        cost = metrics.estimate_cost(model_name, input_tokens, output_tokens)
+
+        # Record operational metrics
+        metrics.record_query(
+            duration_ms=summary["total_duration_ms"],
+            is_error=False,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            model_name=model_name,
+        )
 
         return QueryResponse(
             query=req.query,
             search_type=req.search_type,
             answer=answer,
             sources=retrieved_docs,
+            trace_id=summary["trace_id"],
+            latency_ms=summary["total_duration_ms"],
+            estimated_cost_usd=cost,
         )
 
     return app
