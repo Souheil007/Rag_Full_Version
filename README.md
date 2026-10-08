@@ -239,6 +239,13 @@ pytest -v
 
 ---
 
+## 📚 In-Depth Documentation
+
+* [**Retrieval Metrics and Scoring Guide**](docs/RETRIEVAL_METRICS_AND_SCORES.md): Complete breakdown of `distance`, `score`, `bm25_score`, `rrf_score`, and `rerank_score`, including mathematical formulas, healthy ranges, and real-world interpretations.
+* [**Observability vs. Monitoring Guide**](docs/OBSERVABILITY_VS_MONITORING.md): Architectural guide explaining how semantic observability (Langfuse) catches "silent" RAG failures that traditional APMs (Sentry/Datadog) miss.
+
+---
+
 ## 📐 Conventions & Standards
 
 - **Naming**: `snake_case` for modules/functions/variables, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants.
