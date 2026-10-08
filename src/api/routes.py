@@ -8,6 +8,7 @@ from src.embeddings.embedder import Embedder
 from src.ingestion.loader import DocumentLoader
 from src.llm.llm_client import LLMClient
 from src.observability.metrics_collector import MetricsCollector
+from src.observability.sentry_monitor import SentryMonitor
 from src.observability.span_exporter import SpanExporter
 from src.observability.tracer import Tracer
 from src.prompts.prompt_templates import (
@@ -66,6 +67,9 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         Configured FastAPI app instance.
     """
     cfg = config or load_config()
+
+    # Initialize Sentry before FastAPI application creation
+    sentry_monitor = SentryMonitor()
 
     app = FastAPI(
         title=cfg.get("app", {}).get("name", "RAG Full Version"),
@@ -126,6 +130,12 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     def get_metrics() -> dict[str, Any]:
         """Retrieve operational latency percentiles, error rates, and token costs."""
         return metrics.get_metrics_snapshot()
+
+    @app.get("/sentry-debug")
+    def trigger_sentry_error() -> None:
+        """Trigger an intentional division-by-zero error to test Sentry integration."""
+        _ = 1 / 0
+
 
     @app.post("/index", response_model=dict[str, Any])
     def index_directory(req: IndexDirectoryRequest) -> dict[str, Any]:

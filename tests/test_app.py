@@ -49,6 +49,25 @@ class TestApp(unittest.TestCase):
         results = retriever.retrieve("learning")
         self.assertEqual(len(results), 2)
 
+    def test_sentry_debug_endpoint(self):
+        """Verify that /sentry-debug triggers ZeroDivisionError for Sentry verification."""
+        try:
+            from src.api.routes import create_app
+
+            app = create_app()
+            # Find route handler
+            route_handler = next(
+                (r.endpoint for r in app.routes if getattr(r, "path", None) == "/sentry-debug"),
+                None,
+            )
+            self.assertIsNotNone(route_handler)
+            with self.assertRaises(ZeroDivisionError):
+                route_handler()
+        except ImportError:
+            self.skipTest("fastapi not installed in environment.")
+
+
 
 if __name__ == "__main__":
     unittest.main()
+

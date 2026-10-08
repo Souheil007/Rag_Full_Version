@@ -1,19 +1,20 @@
-"""Span exporter supporting local JSONL logs and optional Langfuse tracing integration."""
+"""Span exporter supporting local JSONL logs, Langfuse tracing, and Sentry error monitoring."""
 
 import json
 import os
 from pathlib import Path
 from typing import Any
+from src.observability.sentry_monitor import SentryMonitor
 from src.utils.helpers import get_logger
 
 logger = get_logger(__name__)
 
 
 class SpanExporter:
-    """Exports trace spans to local JSONL and optionally to Langfuse observability platform."""
+    """Exports trace spans to local JSONL, Langfuse observability, and Sentry error monitoring."""
 
     def __init__(self, log_path: str = "logs/traces.jsonl") -> None:
-        """Initialize SpanExporter and auto-detect Langfuse credentials.
+        """Initialize SpanExporter and auto-detect Langfuse and Sentry credentials.
 
         Args:
             log_path: Path to the JSONL trace log file.
@@ -21,6 +22,7 @@ class SpanExporter:
         self.log_path = Path(log_path)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._langfuse = self._init_langfuse()
+        self._sentry = SentryMonitor()
 
     def _init_langfuse(self) -> Any | None:
         """Lazily initialize Langfuse client if credentials are configured.
@@ -54,7 +56,7 @@ class SpanExporter:
             return None
 
     def export(self, trace_summary: dict[str, Any]) -> None:
-        """Export trace to local JSONL and optionally to Langfuse.
+        """Export trace to local JSONL, Langfuse, and Sentry.
 
         Args:
             trace_summary: Trace summary dictionary from TraceContext.get_summary().
@@ -62,6 +64,8 @@ class SpanExporter:
         self._export_local(trace_summary)
         if self._langfuse:
             self._export_langfuse(trace_summary)
+        if self._sentry.enabled:
+            self._export_sentry(trace_summary)
 
     def _export_local(self, trace_summary: dict[str, Any]) -> None:
         """Append trace summary to local JSONL file.
@@ -106,3 +110,20 @@ class SpanExporter:
             logger.info(f"Trace {trace_summary.get('trace_id')} exported to Langfuse.")
         except Exception as exc:
             logger.error(f"Failed to export trace to Langfuse: {exc}")
+
+    def _export_sentry(self, trace_summary: dict[str, Any]) -> None:
+        """Report trace errors to Sentry monitoring.
+
+        Args:
+            trace_summary: Trace dictionary containing spans and status.
+        """
+        if trace_summary.get("status") != "ERROR":
+            return
+
+        for span in trace_summary.get("spans", []):
+            if span.get("status") == "ERROR" and span.get("error"):
+                self._sentry.capture_message(
+                    message=f"Span Error [{span.get('name')}]: {span.get('error')}",
+                    level="error",
+                )
+

@@ -66,6 +66,17 @@ class TestObservability(unittest.TestCase):
         if os.path.exists(test_log_path):
             os.remove(test_log_path)
 
+    def test_sentry_monitor_disabled_by_default(self):
+        """Verify SentryMonitor handles missing DSN gracefully without crashing."""
+        from src.observability.sentry_monitor import SentryMonitor
+
+        sentry = SentryMonitor(dsn=None)
+        self.assertFalse(sentry.enabled)
+        # Verify capture calls return None when disabled
+        self.assertIsNone(sentry.capture_exception(ValueError("Test error")))
+        self.assertIsNone(sentry.capture_message("Test message"))
+
 
 if __name__ == "__main__":
     unittest.main()
+

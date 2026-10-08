@@ -38,7 +38,9 @@ faiss_index/
 
 # Logs
 logs/*.log
+logs/*.jsonl
 !logs/.gitkeep
+
 
 # IDE & OS
 .vscode/
