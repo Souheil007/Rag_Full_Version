@@ -1,6 +1,6 @@
-"""FastAPI REST API endpoints for document indexing and querying."""
+"""FastAPI REST API endpoints for document indexing and querying with hybrid search."""
 
-from typing import Any
+from typing import Any, Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from src.chunking.chunker import TextChunker
@@ -11,6 +11,8 @@ from src.prompts.prompt_templates import (
     DEFAULT_RAG_SYSTEM_PROMPT,
     format_rag_prompt,
 )
+from src.retrieval.bm25_retriever import BM25Retriever
+from src.retrieval.reranker import Reranker
 from src.retrieval.retriever import Retriever
 from src.utils.helpers import get_logger, load_config
 from src.vectordb.vector_store import VectorStore
@@ -23,12 +25,21 @@ class QueryRequest(BaseModel):
 
     query: str = Field(..., description="The query/question to search and answer.")
     top_k: int | None = Field(default=5, description="Number of context chunks to retrieve.")
+    search_type: Literal["dense", "bm25", "hybrid", "hybrid_rerank"] = Field(
+        default="hybrid_rerank",
+        description="Search strategy: 'dense', 'bm25', 'hybrid', or 'hybrid_rerank'.",
+    )
+    compress_context: bool = Field(
+        default=False,
+        description="Whether to prune noisy sentences from retrieved chunks.",
+    )
 
 
 class QueryResponse(BaseModel):
     """Response model for query answers and retrieved citations."""
 
     query: str
+    search_type: str
     answer: str
     sources: list[dict[str, Any]]
 
@@ -73,12 +84,20 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         collection_name=cfg.get("vectordb", {}).get("collection_name", "rag_documents"),
         persist_directory=cfg.get("vectordb", {}).get("persist_directory", "./chroma_db"),
     )
+    bm25_retriever = BM25Retriever()
+    reranker = Reranker(enabled=True)
+
+    # Unified Retriever Facade
     retriever = Retriever(
         vector_store=vector_store,
         embedder=embedder,
+        bm25_retriever=bm25_retriever,
+        reranker=reranker,
+        default_mode=cfg.get("retrieval", {}).get("search_type", "hybrid_rerank"),
         top_k=cfg.get("retrieval", {}).get("top_k", 5),
         score_threshold=cfg.get("retrieval", {}).get("score_threshold", 0.0),
     )
+
     llm_client = LLMClient(
         provider=cfg.get("llm", {}).get("provider", "gemini"),
         model_name=cfg.get("llm", {}).get("model_name", "gemini-1.5-flash"),
@@ -93,7 +112,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @app.post("/index", response_model=dict[str, Any])
     def index_directory(req: IndexDirectoryRequest) -> dict[str, Any]:
-        """Load, chunk, embed, and store documents from a directory."""
+        """Load, chunk, embed, and index documents for dense and BM25 search."""
         docs = loader.load_directory(req.dir_path)
         if not docs:
             raise HTTPException(
@@ -104,7 +123,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         chunks = chunker.chunk_documents(docs)
         texts = [c["chunk_text"] for c in chunks]
         embeddings = embedder.embed_batch(texts)
+
+        # Index in Vector Store and BM25 index
         vector_store.add_documents(chunks, embeddings)
+        bm25_retriever.fit(chunks)
 
         return {
             "status": "success",
@@ -114,13 +136,20 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @app.post("/query", response_model=QueryResponse)
     def query_rag(req: QueryRequest) -> QueryResponse:
-        """Retrieve relevant context and generate answer for query."""
-        retrieved_docs = retriever.retrieve(req.query, top_k=req.top_k)
+        """Retrieve relevant context using unified retriever and generate answer."""
+        retrieved_docs = retriever.retrieve(
+            query=req.query,
+            top_k=req.top_k,
+            mode=req.search_type,
+            compress=req.compress_context,
+        )
+
         prompt = format_rag_prompt(req.query, retrieved_docs)
         answer = llm_client.generate(prompt, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
 
         return QueryResponse(
             query=req.query,
+            search_type=req.search_type,
             answer=answer,
             sources=retrieved_docs,
         )
