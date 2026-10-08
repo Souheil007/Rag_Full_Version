@@ -30,10 +30,10 @@ flowchart TD
 
     subgraph PHASE1 ["📥 1. DOCUMENT INGESTION & DUAL INDEXING (POST /index)"]
         direction TB
-        A1["📄 Raw Documents (.pdf, .txt, .md, .docx)"]:::process --> A2["✂️ Text Chunker (500 chars, 50 overlap)"]:::process
-        A2 --> A3["🧠 Dense Embedder (MiniLM 384d)"]:::process
-        A3 --> A4[("🗄️ ChromaDB (Dense Vector Store)")]:::storage
-        A2 --> A5[("📊 Okapi BM25 Index (Sparse Keyword Search)")]:::storage
+        A1["📄 Raw Documents<br/>(.pdf, .txt, .md, .docx)"]:::process --> A2["✂️ Text Chunker<br/>(500 chars / 50 overlap)"]:::process
+        A2 --> A3["🧠 Dense Embedder<br/>(MiniLM 384d)"]:::process
+        A3 --> A4[("🗄️ ChromaDB<br/>Dense Vector Store")]:::storage
+        A2 --> A5[("📊 Okapi BM25 Index<br/>Sparse Keyword Search")]:::storage
     end
 
     subgraph PHASE2 ["⚡ 2. HYBRID RETRIEVAL & RE-RANKING (POST /query)"]
@@ -41,18 +41,18 @@ flowchart TD
         B1["❓ User Query"]:::input --> B2{"🔍 Hybrid Retriever Facade"}:::process
         B2 -->|Dense Semantic Match| B3[("🗄️ ChromaDB")]:::storage
         B2 -->|Exact Keyword Match| B4[("📊 Okapi BM25")]:::storage
-        B3 & B4 --> B5["🔀 Reciprocal Rank Fusion (RRF)"]:::process
-        B5 --> B6["🎯 Cross-Encoder Re-Ranker"]:::process
-        B6 --> B7["📝 Context-Injected Prompt Formatter"]:::process
+        B3 & B4 --> B5["🔀 Reciprocal Rank Fusion<br/>(RRF Algorithm)"]:::process
+        B5 --> B6["🎯 Cross-Encoder Reranker"]:::process
+        B6 --> B7["📝 Context-Injected<br/>Prompt Formatter"]:::process
     end
 
     subgraph PHASE3 ["🤖 3. GENERATION & TELEMETRY"]
         direction TB
-        B7 --> C1["💬 LLM Provider (Gemini / OpenAI / Anthropic)"]:::llm
-        C1 --> C2["💡 Final Grounded Answer + Citations"]:::input
+        B7 --> C1["💬 LLM Provider<br/>(Gemini / OpenAI / Anthropic)"]:::llm
+        C1 --> C2["💡 Final Grounded Answer<br/>+ Citations"]:::input
 
-        C1 -.-> D1["📊 Langfuse (Traces & Token Costs)"]:::obs
-        C1 -.-> D2["🚨 Sentry (Exceptions & APM)"]:::obs
+        C1 -.-> D1["📊 Langfuse Traces & Costs"]:::obs
+        C1 -.-> D2["🚨 Sentry APM & Errors"]:::obs
         C1 -.-> D3["📁 Local JSONL Logs"]:::obs
     end
 ```
