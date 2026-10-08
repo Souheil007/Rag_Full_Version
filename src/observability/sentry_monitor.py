@@ -17,7 +17,7 @@ class SentryMonitor:
             dsn: Sentry Data Source Name URL. Auto-detected from SENTRY_DSN if None.
             environment: Deployment environment (e.g. production, development).
         """
-        self.dsn = dsn or os.getenv("SENTRY_DSN", "https://3d2c524dcc9821570dc0d47c89c0b095@o4512221731749888.ingest.de.sentry.io/4512221744595024")
+        self.dsn = dsn if dsn is not None else os.getenv("SENTRY_DSN", "")
         self.environment = environment or os.getenv("SENTRY_ENVIRONMENT", os.getenv("APP_ENV", "development"))
         self.traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0"))
         self.profile_session_sample_rate = float(os.getenv("SENTRY_PROFILE_SESSION_SAMPLE_RATE", "1.0"))

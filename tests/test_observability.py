@@ -70,7 +70,7 @@ class TestObservability(unittest.TestCase):
         """Verify SentryMonitor handles missing DSN gracefully without crashing."""
         from src.observability.sentry_monitor import SentryMonitor
 
-        sentry = SentryMonitor(dsn=None)
+        sentry = SentryMonitor(dsn="")
         self.assertFalse(sentry.enabled)
         # Verify capture calls return None when disabled
         self.assertIsNone(sentry.capture_exception(ValueError("Test error")))

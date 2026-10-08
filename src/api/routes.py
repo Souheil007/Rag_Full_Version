@@ -102,6 +102,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     bm25_retriever = BM25Retriever()
     reranker = Reranker(enabled=True)
 
+    # Pre-warm models at server startup to prevent cold-start latency on first query
+    embedder._init_model()
+    reranker._init_model()
+
     # Unified Retriever Facade
     retriever = Retriever(
         vector_store=vector_store,
