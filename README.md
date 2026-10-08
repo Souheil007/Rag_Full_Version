@@ -21,39 +21,30 @@ Here is the exact flow of data and component execution across the two main pipel
 
 ```mermaid
 flowchart TD
-    %% Custom Styling
-    classDef input fill:#1E293B,stroke:#0F172A,stroke-width:2px,color:#FFFFFF,font-weight:bold
-    classDef process fill:#F8FAFC,stroke:#64748B,stroke-width:2px,color:#0F172A
-    classDef storage fill:#EFF6FF,stroke:#2563EB,stroke-width:2px,color:#1E3A8A,font-weight:bold
-    classDef llm fill:#FAF5FF,stroke:#9333EA,stroke-width:2px,color:#581C87,font-weight:bold
-    classDef obs fill:#F0FDF4,stroke:#16A34A,stroke-width:2px,color:#14532D,font-weight:bold
-
-    subgraph PHASE1 ["📥 1. DOCUMENT INGESTION & DUAL INDEXING (POST /index)"]
-        direction TB
-        A1["📄 Raw Documents<br/>(.pdf, .txt, .md, .docx)"]:::process --> A2["✂️ Text Chunker<br/>(500 chars / 50 overlap)"]:::process
-        A2 --> A3["🧠 Dense Embedder<br/>(MiniLM 384d)"]:::process
-        A3 --> A4[("🗄️ ChromaDB<br/>Dense Vector Store")]:::storage
-        A2 --> A5[("📊 Okapi BM25 Index<br/>Sparse Keyword Search")]:::storage
+    subgraph Ingestion ["📥 1. DOCUMENT INGESTION & DUAL INDEXING"]
+        A1["📄 Raw Documents"] --> A2["✂️ Text Chunker"]
+        A2 --> A3["🧠 Dense Embedder"]
+        A3 --> A4[("🗄️ ChromaDB Store")]
+        A2 --> A5[("📊 Okapi BM25 Index")]
     end
 
-    subgraph PHASE2 ["⚡ 2. HYBRID RETRIEVAL & RE-RANKING (POST /query)"]
-        direction TB
-        B1["❓ User Query"]:::input --> B2{"🔍 Hybrid Retriever Facade"}:::process
-        B2 -->|Dense Semantic Match| B3[("🗄️ ChromaDB")]:::storage
-        B2 -->|Exact Keyword Match| B4[("📊 Okapi BM25")]:::storage
-        B3 & B4 --> B5["🔀 Reciprocal Rank Fusion<br/>(RRF Algorithm)"]:::process
-        B5 --> B6["🎯 Cross-Encoder Reranker"]:::process
-        B6 --> B7["📝 Context-Injected<br/>Prompt Formatter"]:::process
+    subgraph Retrieval ["⚡ 2. HYBRID RETRIEVAL & RE-RANKING"]
+        B1["❓ User Query"] --> B2["🔍 Hybrid Retriever"]
+        B2 --> B3[("🗄️ ChromaDB")]
+        B2 --> B4[("📊 Okapi BM25")]
+        B3 --> B5["🔀 Reciprocal Rank Fusion"]
+        B4 --> B5
+        B5 --> B6["🎯 Cross-Encoder Reranker"]
+        B6 --> B7["📝 Prompt Formatter"]
     end
 
-    subgraph PHASE3 ["🤖 3. GENERATION & TELEMETRY"]
-        direction TB
-        B7 --> C1["💬 LLM Provider<br/>(Gemini / OpenAI / Anthropic)"]:::llm
-        C1 --> C2["💡 Final Grounded Answer<br/>+ Citations"]:::input
+    subgraph Generation ["🤖 3. GENERATION & TELEMETRY"]
+        B7 --> C1["💬 LLM Provider"]
+        C1 --> C2["💡 Grounded Answer"]
 
-        C1 -.-> D1["📊 Langfuse Traces & Costs"]:::obs
-        C1 -.-> D2["🚨 Sentry APM & Errors"]:::obs
-        C1 -.-> D3["📁 Local JSONL Logs"]:::obs
+        C1 -.-> D1["📊 Langfuse Tracing"]
+        C1 -.-> D2["🚨 Sentry APM"]
+        C1 -.-> D3["📁 Local JSONL Logs"]
     end
 ```
 
