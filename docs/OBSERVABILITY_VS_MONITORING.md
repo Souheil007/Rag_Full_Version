@@ -38,10 +38,8 @@ flowchart TD
     Q["User Query"] --> S1["1. Embedding & BM25 Search"]
     S1 --> S2["2. Cross-Encoder Reranker"]
     S2 --> S3["3. LLM Prompt Construction"]
-    S3 --> S4["4. Generation (Gemini 2.0)"]
-    S4 --> Out["HTTP 200 OK: 'Full refund within 30 days' (WRONG: Policy is 14 days)"]
-    
-    style Out fill:#ffcccc,stroke:#ff0000
+    S3 --> S4["4. LLM Generation"]
+    S4 --> Out["HTTP 200 OK: Incorrect Answer<br/>(Policy is 14 days, returned 30 days)"]
 ```
 
 ### Why Monitoring Fails Here:
@@ -60,15 +58,15 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    subgraph Infrastructure_APM["Infrastructure & APM"]
+    subgraph APM ["Infrastructure & APM"]
         D["Datadog / Prometheus"]
-        S["Sentry (Error & Crash APM)"]
+        S["Sentry APM"]
     end
 
-    subgraph LLM_Observability["AI & LLM Observability"]
-        L["Langfuse (Open-Source Standard)"]
-        P["Arize Phoenix (Vector Space Analysis)"]
-        O["OpenTelemetry (OTel Semantic Conventions)"]
+    subgraph Observability ["AI & LLM Observability"]
+        L["Langfuse"]
+        P["Arize Phoenix"]
+        O["OpenTelemetry"]
     end
 ```
 

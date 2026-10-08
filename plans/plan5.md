@@ -9,23 +9,23 @@ Document architectural tradeoffs, scalability bottlenecks at 100x volume, and de
 
 ```mermaid
 flowchart TD
-    subgraph Client_Layer["Client & Ingress"]
-        LB["Load Balancer / Ingress (FastAPI Replicas)"]
+    subgraph Client ["Client & Ingress"]
+        LB["Load Balancer / Ingress"]
     end
 
-    subgraph Caching_and_Routing["Caching & Routing"]
-        Redis["Distributed Redis Semantic Cache"]
-        Router["Model Router (Flash vs Pro)"]
+    subgraph Cache ["Caching & Routing"]
+        Redis["Redis Semantic Cache"]
+        Router["Model Router"]
     end
 
-    subgraph Distributed_Storage["Storage & Retrieval"]
-        Qdrant["Distributed Vector DB (HNSW / IVF-PQ Sharded Index)"]
-        ES["Elasticsearch / OpenSearch (Distributed BM25)"]
+    subgraph Storage ["Storage & Retrieval"]
+        Qdrant["Distributed Vector DB"]
+        ES["Elasticsearch BM25"]
     end
 
-    subgraph Async_Workers["Asynchronous Ingestion Pipeline"]
-        Queue["Kafka / Celery Ingestion Queue"]
-        Workers["Ingestion & Chunking Workers (Batch GPU Embeddings)"]
+    subgraph Ingestion ["Ingestion Pipeline"]
+        Queue["Kafka Ingestion Queue"]
+        Workers["Chunking Workers"]
     end
 
     LB --> Redis

@@ -9,12 +9,12 @@ Minimize LLM token spend, reduce end-to-end P95 response latency, and intelligen
 
 ```mermaid
 flowchart TD
-    Q["User Query"] --> C["Semantic Cache (Cosine Similarity >= 0.95)"]
-    C -->|"Hit (< 15ms)"| R1["Return Cached Response ($0 cost)"]
-    C -->|"Miss"| QR["Query Complexity Classifier / Router"]
-    QR -->|"Simple / Direct"| M1["Fast Model: Gemini 3.7 Flash"]
-    QR -->|"Complex / Multi-Hop"| M2["Reasoning Model: Gemini 1.5 Pro"]
-    M1 --> Post["Save to Semantic Cache"]
+    Q["User Query"] --> C["Semantic Vector Cache"]
+    C -->|"Cache Hit"| R1["Return Cached Response ($0)"]
+    C -->|"Cache Miss"| QR["Query Router & Classifier"]
+    QR -->|"Simple Query"| M1["Fast Model (Gemini Flash)"]
+    QR -->|"Complex Query"| M2["Reasoning Model (Gemini Pro)"]
+    M1 --> Post["Save to Cache"]
     M2 --> Post
 ```
 

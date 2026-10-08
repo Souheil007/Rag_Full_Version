@@ -9,12 +9,12 @@ Upgrade the basic vector retrieval into a production-grade **Hybrid Search and C
 
 ```mermaid
 flowchart LR
-    Q["User Query"] --> S["Sparse Retriever (BM25)"]
-    Q --> D["Dense Retriever (Vector Embeddings)"]
-    S --> F["Reciprocal Rank Fusion (RRF)"]
+    Q["User Query"] --> S["Sparse BM25 Search"]
+    Q --> D["Dense Vector Search"]
+    S --> F["Reciprocal Rank Fusion"]
     D --> F
-    F -->|"Top 20 Candidates"| R["Cross-Encoder Re-ranker"]
-    R -->|"Top 5 Scored Chunks"| C["Context Compressor / Pruner"]
+    F --> R["Cross-Encoder Reranker"]
+    R --> C["Context Compressor"]
     C --> Out["Filtered Prompt Context"]
 ```
 

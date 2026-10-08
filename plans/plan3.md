@@ -9,11 +9,11 @@ Eliminate hallucinations, verify factual grounding with strict citation enforcem
 
 ```mermaid
 flowchart TD
-    Ans["Generated Answer + Citations"] --> CV["Citation Verifier: Check [Doc N] quotes against Source"]
-    CV -->|"Invalid Citation"| RF["Reject & Re-generate or Flag"]
-    CV -->|"Valid Citation"| CS["Confidence & Grounding Score Check"]
-    CS -->|"Below Threshold"| FB["Trigger Safe Fallback Response"]
-    CS -->|"Passed"| OK["Approved Response to User"]
+    Ans["Generated Answer"] --> CV["Citation Verifier"]
+    CV -->|"Invalid"| RF["Reject & Re-generate"]
+    CV -->|"Valid"| CS["Grounding Score Check"]
+    CS -->|"Low Score"| FB["Trigger Safe Fallback"]
+    CS -->|"Passed"| OK["Approved Response"]
 ```
 
 ---

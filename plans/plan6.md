@@ -9,18 +9,18 @@ Design and implement a unified **Monitoring & Semantic Observability** layer for
 
 ```mermaid
 flowchart TD
-    subgraph Traditional_Monitoring["1. Operational Monitoring (The 'What' & 'When')"]
-        M1["HTTP Status Codes (500s, 429 Rate Limits)"]
-        M2["System Latency (P50, P95, P99)"]
-        M3["Token Consumption & Dollar Spend ($/day)"]
-        M4["Memory / CPU / Vector Store RAM Usage"]
+    subgraph Monitoring ["1. Operational Monitoring (The 'What')"]
+        M1["HTTP Status & Error Rates"]
+        M2["Latency Percentiles (P50/P95)"]
+        M3["Token Costs ($/day)"]
+        M4["Memory & CPU Usage"]
     end
 
-    subgraph Semantic_Observability["2. Semantic Observability (The 'Why')"]
-        O1["Query Journey Spans (Ingest -> Dense/Sparse -> RRF -> Rerank -> LLM)"]
-        O2["Chunk Provenance (Which exact chunks were pulled and why?)"]
-        O3["Rank Shifts (Did the Cross-Encoder demote a critical fact?)"]
-        O4["Groundedness & Hallucination Drift Scores (LLM-as-a-Judge)"]
+    subgraph Observability ["2. Semantic Observability (The 'Why')"]
+        O1["Query Journey Spans"]
+        O2["Chunk Provenance"]
+        O3["Cross-Encoder Rank Shifts"]
+        O4["Groundedness & Faithfulness"]
     end
 ```
 
@@ -40,31 +40,19 @@ flowchart TD
 
 ## 🏗️ Architecture: Distributed Tracing & Span Anatomy
 
-Every `/query` request creates a root trace with child spans recording input, output, duration, and score metadata:
+Every `/query` request creates a root trace with child execution spans:
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Router as API /query
-    participant Cache as Span 1: Semantic Cache
-    participant Search as Span 2: Hybrid Search (BM25 + Dense)
-    participant Rerank as Span 3: Cross-Encoder Reranker
-    participant Prompt as Span 4: Prompt Context Formatter
-    participant LLM as Span 5: LLM Generation (Gemini 2.0)
-    participant Guard as Span 6: Guardrail & Citation Verifier
-
-    User->>Router: "What is Reciprocal Rank Fusion?"
-    Router->>Cache: Check vector cache (Miss)
-    Router->>Search: Dense & Sparse Candidate Retrieval
-    Note over Search: Records raw cosine scores & BM25 TF-IDF values
-    Router->>Rerank: Cross-Encoder candidate scoring
-    Note over Rerank: Records pre-rank vs post-rank position shifts
-    Router->>Prompt: Context pruning & token budget enforcement
-    Router->>LLM: Dispatch prompt with system instruction
-    Note over LLM: Records input tokens, output tokens, cost in USD
-    Router->>Guard: Verify citations & groundedness score
-    Router-->>User: Verified Answer + Trace ID + Execution Telemetry
+flowchart TD
+    subgraph Tracing ["TRACED EXECUTION SPANS"]
+        S0["API /query Request"] --> S1["Span 1: Semantic Cache"]
+        S1 --> S2["Span 2: Hybrid Search"]
+        S2 --> S3["Span 3: Cross-Encoder Reranker"]
+        S3 --> S4["Span 4: Context Formatter"]
+        S4 --> S5["Span 5: LLM Generation"]
+        S5 --> S6["Span 6: Guardrail Verification"]
+        S6 --> Out["Verified Answer + Telemetry"]
+    end
 ```
 
 ---

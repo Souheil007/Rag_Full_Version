@@ -9,17 +9,17 @@ Build a comprehensive evaluation framework to measure, monitor, and mathematical
 
 ```mermaid
 flowchart TD
-    subgraph Retrieval_Metrics["1. Retrieval Quality Metrics"]
-        P["Precision@K: Proportion of retrieved chunks that are relevant"]
-        R["Recall@K: Proportion of total ground-truth facts retrieved"]
-        HR["Hit Rate@K: Is at least one relevant document in top-K?"]
-        MRR["MRR: Mean Reciprocal Rank (Position of 1st hit)"]
+    subgraph Retrieval ["1. Retrieval Quality Metrics"]
+        P["Precision@K"]
+        R["Recall@K"]
+        HR["Hit Rate@K"]
+        MRR["Mean Reciprocal Rank (MRR)"]
     end
 
-    subgraph Generation_Metrics["2. Generation Quality (LLM-as-a-Judge)"]
-        F["Faithfulness / Groundedness: Is answer 100% derived from context?"]
-        AR["Answer Relevance: Does answer address the user query?"]
-        CR["Context Precision: Did we provide clean context without noise?"]
+    subgraph Generation ["2. Generation Quality (LLM-as-a-Judge)"]
+        F["Faithfulness & Groundedness"]
+        AR["Answer Relevance"]
+        CR["Context Precision"]
     end
 ```
 
