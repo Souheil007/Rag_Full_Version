@@ -32,11 +32,12 @@ class SpanExporter:
         """
         public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
         secret_key = os.getenv("LANGFUSE_SECRET_KEY")
-        host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+        host = os.getenv("LANGFUSE_HOST", os.getenv("LANGFUSE_BASE_URL", "https://cloud.langfuse.com"))
 
         if not public_key or not secret_key:
             logger.info("Langfuse credentials not set. Tracing to local JSONL only.")
             return None
+
 
         try:
             from langfuse import Langfuse
@@ -86,39 +87,53 @@ class SpanExporter:
             trace_summary: Trace dictionary containing spans and metadata.
         """
         try:
-            trace = None
             trace_id = trace_summary.get("trace_id")
-            root_name = trace_summary.get("spans", [{}])[0].get("name", "rag_pipeline")
+            spans = trace_summary.get("spans", [])
+            root_name = spans[0].get("name", "rag_pipeline") if spans else "rag_pipeline"
             metadata = {
+                "trace_id": trace_id,
                 "total_duration_ms": trace_summary.get("total_duration_ms"),
                 "status": trace_summary.get("status"),
             }
 
-            if hasattr(self._langfuse, "trace"):
+
+            if hasattr(self._langfuse, "start_observation"):
+                # Langfuse SDK v4+ API
+                root_obs = self._langfuse.start_observation(
+                    name=root_name,
+                    as_type="chain",
+                    metadata=metadata,
+                )
+                for span in trace_summary.get("spans", [])[1:]:
+                    as_type = "retriever" if "retrieval" in span.get("name", "").lower() else "span"
+                    if hasattr(root_obs, "start_observation"):
+                        root_obs.start_observation(
+                            name=span["name"],
+                            as_type=as_type,
+                            metadata=span.get("attributes", {}),
+                            status_message=span.get("status"),
+                        )
+                    else:
+                        self._langfuse.start_observation(
+                            name=span["name"],
+                            as_type=as_type,
+                            metadata=span.get("attributes", {}),
+                            status_message=span.get("status"),
+                        )
+            elif hasattr(self._langfuse, "trace"):
+                # Langfuse SDK v2/v3 legacy API
                 trace = self._langfuse.trace(
                     id=trace_id,
                     name=root_name,
                     metadata=metadata,
                 )
-            elif hasattr(self._langfuse, "create_trace"):
-                trace = self._langfuse.create_trace(
-                    id=trace_id,
-                    name=root_name,
-                    metadata=metadata,
-                )
-            elif hasattr(self._langfuse, "span"):
-                trace = self._langfuse.span(
-                    name=root_name,
-                    metadata=metadata,
-                )
-
-            if trace and hasattr(trace, "span"):
-                for span in trace_summary.get("spans", [])[1:]:
-                    trace.span(
-                        name=span["name"],
-                        metadata=span.get("attributes", {}),
-                        status_message=span.get("status"),
-                    )
+                if hasattr(trace, "span"):
+                    for span in trace_summary.get("spans", [])[1:]:
+                        trace.span(
+                            name=span["name"],
+                            metadata=span.get("attributes", {}),
+                            status_message=span.get("status"),
+                        )
 
             if hasattr(self._langfuse, "flush"):
                 self._langfuse.flush()
@@ -126,6 +141,7 @@ class SpanExporter:
             logger.info(f"Trace {trace_id} exported to Langfuse.")
         except Exception as exc:
             logger.error(f"Failed to export trace to Langfuse: {exc}")
+
 
 
     def _export_sentry(self, trace_summary: dict[str, Any]) -> None:
