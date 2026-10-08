@@ -86,30 +86,47 @@ class SpanExporter:
             trace_summary: Trace dictionary containing spans and metadata.
         """
         try:
-            trace = self._langfuse.trace(
-                id=trace_summary.get("trace_id"),
-                name=trace_summary.get("spans", [{}])[0].get("name", "rag_pipeline"),
-                metadata={
-                    "total_duration_ms": trace_summary.get("total_duration_ms"),
-                    "status": trace_summary.get("status"),
-                },
-            )
+            trace = None
+            trace_id = trace_summary.get("trace_id")
+            root_name = trace_summary.get("spans", [{}])[0].get("name", "rag_pipeline")
+            metadata = {
+                "total_duration_ms": trace_summary.get("total_duration_ms"),
+                "status": trace_summary.get("status"),
+            }
 
-            # Export each child span as a Langfuse generation or span
-            for span in trace_summary.get("spans", [])[1:]:  # Skip root span
-                trace.span(
-                    name=span["name"],
-                    start_time=None,
-                    end_time=None,
-                    metadata=span.get("attributes", {}),
-                    status_message=span.get("status"),
-                    level="ERROR" if span.get("status") == "ERROR" else "DEFAULT",
+            if hasattr(self._langfuse, "trace"):
+                trace = self._langfuse.trace(
+                    id=trace_id,
+                    name=root_name,
+                    metadata=metadata,
+                )
+            elif hasattr(self._langfuse, "create_trace"):
+                trace = self._langfuse.create_trace(
+                    id=trace_id,
+                    name=root_name,
+                    metadata=metadata,
+                )
+            elif hasattr(self._langfuse, "span"):
+                trace = self._langfuse.span(
+                    name=root_name,
+                    metadata=metadata,
                 )
 
-            self._langfuse.flush()
-            logger.info(f"Trace {trace_summary.get('trace_id')} exported to Langfuse.")
+            if trace and hasattr(trace, "span"):
+                for span in trace_summary.get("spans", [])[1:]:
+                    trace.span(
+                        name=span["name"],
+                        metadata=span.get("attributes", {}),
+                        status_message=span.get("status"),
+                    )
+
+            if hasattr(self._langfuse, "flush"):
+                self._langfuse.flush()
+
+            logger.info(f"Trace {trace_id} exported to Langfuse.")
         except Exception as exc:
             logger.error(f"Failed to export trace to Langfuse: {exc}")
+
 
     def _export_sentry(self, trace_summary: dict[str, Any]) -> None:
         """Report trace errors to Sentry monitoring.
