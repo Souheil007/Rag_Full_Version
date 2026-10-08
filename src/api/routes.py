@@ -230,4 +230,25 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             estimated_cost_usd=cost,
         )
 
+    @app.post("/evaluate", response_model=dict[str, Any])
+    def run_benchmark_evaluation(dataset_path: str = "data/eval/golden_dataset.json") -> dict[str, Any]:
+        """Run batch evaluation against a benchmark dataset and return metric scorecard."""
+        from src.evaluation.evaluator import RAGEvaluator
+
+        evaluator = RAGEvaluator(llm_client=llm_client)
+        cases = evaluator.load_golden_dataset(dataset_path)
+        if not cases:
+            return {"status": "error", "message": f"Dataset not found at {dataset_path}"}
+
+        for case in cases:
+            q = case.get("query", "")
+            docs = retriever.retrieve(query=q, top_k=5)
+            case["retrieved_ids"] = [d.get("chunk_id", "") for d in docs]
+            case["context_chunks"] = [d.get("chunk_text", "") for d in docs]
+            p = format_rag_prompt(q, docs)
+            case["generated_answer"] = llm_client.generate(p, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
+
+        scorecard = evaluator.evaluate_pipeline(cases, k=5)
+        return scorecard
+
     return app
