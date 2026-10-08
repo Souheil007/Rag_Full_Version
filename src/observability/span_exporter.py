@@ -106,20 +106,27 @@ class SpanExporter:
                 )
                 for span in trace_summary.get("spans", [])[1:]:
                     as_type = "retriever" if "retrieval" in span.get("name", "").lower() else "span"
+                    child = None
                     if hasattr(root_obs, "start_observation"):
-                        root_obs.start_observation(
+                        child = root_obs.start_observation(
                             name=span["name"],
                             as_type=as_type,
                             metadata=span.get("attributes", {}),
                             status_message=span.get("status"),
                         )
                     else:
-                        self._langfuse.start_observation(
+                        child = self._langfuse.start_observation(
                             name=span["name"],
                             as_type=as_type,
                             metadata=span.get("attributes", {}),
                             status_message=span.get("status"),
                         )
+                    if child and hasattr(child, "end"):
+                        child.end()
+
+                if hasattr(root_obs, "end"):
+                    root_obs.end()
+
             elif hasattr(self._langfuse, "trace"):
                 # Langfuse SDK v2/v3 legacy API
                 trace = self._langfuse.trace(
@@ -138,9 +145,20 @@ class SpanExporter:
             if hasattr(self._langfuse, "flush"):
                 self._langfuse.flush()
 
-            logger.info(f"Trace {trace_id} exported to Langfuse.")
+            trace_url = ""
+            if hasattr(self._langfuse, "get_trace_url"):
+                try:
+                    trace_url = self._langfuse.get_trace_url(trace_id=trace_id)
+                except Exception:
+                    pass
+
+            if trace_url:
+                logger.info(f"Trace {trace_id} exported to Langfuse → {trace_url}")
+            else:
+                logger.info(f"Trace {trace_id} exported to Langfuse.")
         except Exception as exc:
             logger.error(f"Failed to export trace to Langfuse: {exc}")
+
 
 
 
