@@ -74,11 +74,13 @@ flowchart TD
 
 ## 📋 Task Checklist
 
-- [ ] Create `src/observability/__init__.py`.
-- [ ] Create `src/observability/tracer.py` with span context manager and trace ID generator.
-- [ ] Create `src/observability/metrics_collector.py` with token cost estimation formulas (Gemini/OpenAI/Claude rates).
-- [ ] Create `src/observability/span_exporter.py` for structured local trace persistence.
-- [ ] Write `docs/OBSERVABILITY_VS_MONITORING.md` explaining operational vs semantic observability.
-- [ ] Integrate tracing into `src/api/routes.py` so every response returns an `x-trace-id` header and execution telemetry.
-- [ ] Add unit tests in `tests/test_observability.py`.
-- [ ] Update `README.md` with Plan 6.
+- [x] Create `src/observability/__init__.py`.
+- [x] Create `src/observability/tracer.py` with span context manager and trace ID generator.
+- [x] Create `src/observability/metrics_collector.py` with token cost estimation formulas (Gemini/OpenAI/Claude rates).
+- [x] Create `src/observability/span_exporter.py` for structured local trace persistence, Langfuse tracing, and Sentry APM integration.
+- [x] Create `src/observability/sentry_monitor.py` with FastAPI SDK integration and error reporting.
+- [x] Write `docs/OBSERVABILITY_VS_MONITORING.md` explaining operational vs semantic observability.
+- [x] Integrate tracing and Sentry into `src/api/routes.py` with trace ID telemetry and `/sentry-debug` endpoint.
+- [x] Add unit tests in `tests/test_observability.py` and verify all tests pass.
+- [x] Update `README.md` with Plan 6 architecture diagrams and roadmap status.
+
