@@ -49,6 +49,18 @@ class TestApp(unittest.TestCase):
         results = retriever.retrieve("learning")
         self.assertEqual(len(results), 2)
 
+    def test_llm_client_mistral_initialization(self):
+        """Verify LLMClient initializes Mistral provider without error."""
+        from src.llm.llm_client import LLMClient
+
+        client = LLMClient(provider="mistral", model_name="mistral-small-latest")
+        self.assertEqual(client.provider, "mistral")
+        self.assertEqual(client.model_name, "mistral-small-latest")
+        # Generate mock or real response
+        resp = client.generate("Hello Mistral")
+        self.assertIsInstance(resp, str)
+
+
     def test_sentry_debug_endpoint(self):
         """Verify that /sentry-debug triggers ZeroDivisionError for Sentry verification."""
         try:

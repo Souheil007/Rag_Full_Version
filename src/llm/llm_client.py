@@ -76,6 +76,36 @@ class LLMClient:
             except Exception as exc:
                 logger.warning(f"OpenAI initialization skipped: {exc}")
 
+        elif self.provider in ("mistral", "mistralai"):
+            api_key = os.getenv("MISTRAL_API_KEY")
+            if not api_key:
+                logger.warning("MISTRAL_API_KEY environment variable is not set.")
+                return
+
+            # Try native mistralai SDK first
+            try:
+                from mistralai import Mistral
+
+                self._client = Mistral(api_key=api_key)
+                self._sdk_type = "mistralai"
+                logger.info(f"Initialized Mistral AI client ({self.model_name})")
+                return
+            except Exception:
+                pass
+
+            # Fallback to OpenAI SDK using Mistral endpoint
+            try:
+                from openai import OpenAI
+
+                self._client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.mistral.ai/v1",
+                )
+                self._sdk_type = "openai_mistral"
+                logger.info(f"Initialized OpenAI-compatible Mistral client ({self.model_name})")
+            except Exception as exc:
+                logger.error(f"Failed to initialize Mistral client: {exc}")
+
     def _generate_gemini(self, prompt: str, system_prompt: str | None = None) -> str:
         """Generate response via Gemini API with model fallback support.
 
@@ -137,6 +167,56 @@ class LLMClient:
         logger.error(f"All Gemini model candidates failed. Last error: {last_error}")
         return f"[Error generating response with Gemini: {last_error}]"
 
+    def _generate_mistral(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Generate response via Mistral API with model fallback support.
+
+        Args:
+            prompt: Formatted user prompt.
+            system_prompt: Optional system instruction.
+
+        Returns:
+            Generated response string.
+        """
+        candidate_models = [
+            self.model_name,
+            "mistral-small-latest",
+            "open-mistral-7b",
+            "mistral-tiny",
+            "codestral-latest",
+        ]
+        candidate_models = list(dict.fromkeys(candidate_models))
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        last_error = None
+        for model in candidate_models:
+            try:
+                if self._sdk_type == "mistralai":
+                    response = self._client.chat.complete(
+                        model=model,
+                        messages=messages,
+                        temperature=self.temperature,
+                        max_tokens=self.max_output_tokens,
+                    )
+                    return response.choices[0].message.content or ""
+                elif self._sdk_type == "openai_mistral":
+                    response = self._client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=self.temperature,
+                        max_tokens=self.max_output_tokens,
+                    )
+                    return response.choices[0].message.content or ""
+            except Exception as exc:
+                last_error = exc
+                logger.warning(f"Mistral generation with '{model}' failed ({exc}). Trying next candidate...")
+
+        logger.error(f"All Mistral candidates failed. Last error: {last_error}")
+        return f"[Error generating response with Mistral: {last_error}]"
+
     def generate(self, prompt: str, system_prompt: str | None = None) -> str:
         """Send prompt to configured LLM and return generated text.
 
@@ -151,6 +231,9 @@ class LLMClient:
 
         if self.provider == "gemini" and self._client is not None:
             return self._generate_gemini(prompt, system_prompt)
+
+        if self.provider in ("mistral", "mistralai") and self._client is not None:
+            return self._generate_mistral(prompt, system_prompt)
 
         if self.provider == "openai" and self._client is not None:
             try:
@@ -172,3 +255,4 @@ class LLMClient:
 
         # Mock / Fallback output for testing without API keys
         return f"[Mock response for query based on model {self.model_name}]"
+

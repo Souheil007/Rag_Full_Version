@@ -35,10 +35,11 @@ retrieval:
   search_type: "hybrid_rerank" # Options: dense, bm25, hybrid, hybrid_rerank
 
 llm:
-  provider: "gemini" # Options: gemini, openai, anthropic
-  model_name: "gemini-2.0-flash"
+  provider: "mistral" # Options: mistral, gemini, openai, anthropic
+  model_name: "mistral-small-latest" # Options: mistral-small-latest, open-mistral-7b, codestral-latest
   temperature: 0.2
   max_output_tokens: 1024
+
 
 api:
   host: "0.0.0.0"
