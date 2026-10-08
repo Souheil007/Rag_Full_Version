@@ -165,8 +165,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     def query_rag(req: QueryRequest) -> QueryResponse:
         """Execute RAG query wrapped in distributed tracing and metrics tracking."""
         with tracer.trace("rag_query_pipeline") as root_trace:
+            root_trace.root_span.set_input({"query": req.query, "search_type": req.search_type, "top_k": req.top_k})
+
             # 1. Retrieval Span
             with root_trace.span("retrieval") as s_ret:
+                s_ret.set_input({"query": req.query, "mode": req.search_type, "top_k": req.top_k})
                 retrieved_docs = retriever.retrieve(
                     query=req.query,
                     top_k=req.top_k,
@@ -175,15 +178,26 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
                 )
                 s_ret.set_attribute("chunk_count", len(retrieved_docs))
                 s_ret.set_attribute("mode", req.search_type)
+                s_ret.set_output({
+                    "count": len(retrieved_docs),
+                    "chunks": [d.get("chunk_text", "")[:150] + "..." for d in retrieved_docs],
+                })
 
             # 2. Prompt Formatting Span
-            with root_trace.span("prompt_formatting"):
+            with root_trace.span("prompt_formatting") as s_fmt:
+                s_fmt.set_input({"query": req.query, "chunks_retrieved": len(retrieved_docs)})
                 prompt = format_rag_prompt(req.query, retrieved_docs)
+                s_fmt.set_output({"prompt_length": len(prompt)})
 
             # 3. LLM Generation Span
             with root_trace.span("llm_generation") as s_llm:
+                s_llm.set_input({"prompt": prompt, "model": model_name})
                 answer = llm_client.generate(prompt, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
                 s_llm.set_attribute("model", model_name)
+                s_llm.set_output({"answer": answer})
+
+            root_trace.root_span.set_output({"answer": answer, "sources_count": len(retrieved_docs)})
+
 
         summary = root_trace.get_summary()
         exporter.export(summary)

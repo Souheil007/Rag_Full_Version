@@ -89,55 +89,98 @@ class SpanExporter:
         try:
             trace_id = trace_summary.get("trace_id")
             spans = trace_summary.get("spans", [])
-            root_name = spans[0].get("name", "rag_pipeline") if spans else "rag_pipeline"
+            root_span = spans[0] if spans else {}
+            root_name = root_span.get("name", "rag_pipeline") if root_span else "rag_pipeline"
+            root_input = root_span.get("input") or trace_summary.get("input")
+            root_output = root_span.get("output") or trace_summary.get("output")
+            root_duration_ms = root_span.get("duration_ms", trace_summary.get("total_duration_ms", 0.0))
+
             metadata = {
                 "trace_id": trace_id,
                 "total_duration_ms": trace_summary.get("total_duration_ms"),
                 "status": trace_summary.get("status"),
             }
 
-
             if hasattr(self._langfuse, "start_observation"):
                 # Langfuse SDK v4+ API
                 root_obs = self._langfuse.start_observation(
                     name=root_name,
                     as_type="chain",
+                    input=root_input,
+                    output=root_output,
                     metadata=metadata,
                 )
-                for span in trace_summary.get("spans", [])[1:]:
-                    as_type = "retriever" if "retrieval" in span.get("name", "").lower() else "span"
-                    child = None
-                    if hasattr(root_obs, "start_observation"):
-                        child = root_obs.start_observation(
-                            name=span["name"],
-                            as_type=as_type,
-                            metadata=span.get("attributes", {}),
-                            status_message=span.get("status"),
-                        )
+                if hasattr(root_obs, "set_trace_io"):
+                    try:
+                        import warnings
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore", DeprecationWarning)
+                            root_obs.set_trace_io(input=root_input, output=root_output)
+                    except Exception:
+                        pass
+
+                child_spans = spans[1:] if len(spans) > 1 else []
+                for span in child_spans:
+                    span_name = span.get("name", "span")
+                    span_input = span.get("input")
+                    span_output = span.get("output")
+                    span_attrs = dict(span.get("attributes", {}))
+                    span_duration_ms = span.get("duration_ms", 0.0)
+                    span_attrs["duration_ms"] = span_duration_ms
+
+                    # Classify observation type according to Langfuse conventions
+                    if "llm" in span_name.lower() or "generation" in span_name.lower() or "model" in span_attrs:
+                        as_type = "generation"
+                    elif "retriev" in span_name.lower():
+                        as_type = "retriever"
                     else:
-                        child = self._langfuse.start_observation(
-                            name=span["name"],
-                            as_type=as_type,
-                            metadata=span.get("attributes", {}),
-                            status_message=span.get("status"),
-                        )
+                        as_type = "span"
+
+                    start_kwargs = {
+                        "name": span_name,
+                        "as_type": as_type,
+                        "input": span_input,
+                        "output": span_output,
+                        "metadata": span_attrs,
+                        "status_message": span.get("status"),
+                    }
+                    if as_type == "generation" and span_attrs.get("model"):
+                        start_kwargs["model"] = span_attrs["model"]
+
+                    if hasattr(root_obs, "start_observation"):
+                        child = root_obs.start_observation(**start_kwargs)
+                    else:
+                        child = self._langfuse.start_observation(**start_kwargs)
+
                     if child and hasattr(child, "end"):
-                        child.end()
+                        end_kwargs = {}
+                        if hasattr(child, "_otel_span") and hasattr(child._otel_span, "start_time"):
+                            duration_ns = int(span_duration_ms * 1_000_000)
+                            end_kwargs["end_time"] = child._otel_span.start_time + duration_ns
+                        child.end(**end_kwargs)
 
                 if hasattr(root_obs, "end"):
-                    root_obs.end()
+                    end_kwargs = {}
+                    if hasattr(root_obs, "_otel_span") and hasattr(root_obs._otel_span, "start_time"):
+                        duration_ns = int(root_duration_ms * 1_000_000)
+                        end_kwargs["end_time"] = root_obs._otel_span.start_time + duration_ns
+                    root_obs.end(**end_kwargs)
 
             elif hasattr(self._langfuse, "trace"):
                 # Langfuse SDK v2/v3 legacy API
                 trace = self._langfuse.trace(
                     id=trace_id,
                     name=root_name,
+                    input=root_input,
+                    output=root_output,
                     metadata=metadata,
                 )
                 if hasattr(trace, "span"):
-                    for span in trace_summary.get("spans", [])[1:]:
+                    for span in spans[1:]:
                         trace.span(
                             name=span["name"],
+                            input=span.get("input"),
+                            output=span.get("output"),
                             metadata=span.get("attributes", {}),
                             status_message=span.get("status"),
                         )

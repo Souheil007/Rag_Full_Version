@@ -22,25 +22,47 @@ class Span:
         self.parent_id = parent_id
         self.start_time: float = 0.0
         self.end_time: float = 0.0
+        self.start_timestamp: float = 0.0
+        self.end_timestamp: float = 0.0
         self.duration_ms: float = 0.0
         self.attributes: dict[str, Any] = {}
+        self.input: Any = None
+        self.output: Any = None
         self.status: str = "UNSET"
         self.error: str | None = None
 
     def __enter__(self) -> "Span":
         """Start the span timer upon entering context block."""
         self.start_time = time.perf_counter()
+        self.start_timestamp = time.time()
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Stop the span timer and record exceptions if raised."""
         self.end_time = time.perf_counter()
+        self.end_timestamp = time.time()
         self.duration_ms = round((self.end_time - self.start_time) * 1000.0, 3)
         if exc_type is not None:
             self.status = "ERROR"
             self.error = str(exc_val)
         else:
             self.status = "OK"
+
+    def set_input(self, input_data: Any) -> None:
+        """Record input payload for this span.
+
+        Args:
+            input_data: Query, prompt, or data payload.
+        """
+        self.input = input_data
+
+    def set_output(self, output_data: Any) -> None:
+        """Record output result for this span.
+
+        Args:
+            output_data: Retrieval results, generated response, or data payload.
+        """
+        self.output = output_data
 
     def set_attribute(self, key: str, value: Any) -> None:
         """Attach custom telemetry attribute to the span.
@@ -62,11 +84,16 @@ class Span:
             "trace_id": self.trace_id,
             "span_id": self.span_id,
             "parent_id": self.parent_id,
+            "start_timestamp": self.start_timestamp,
+            "end_timestamp": self.end_timestamp,
             "duration_ms": self.duration_ms,
             "status": self.status,
+            "input": self.input,
+            "output": self.output,
             "attributes": self.attributes,
             "error": self.error,
         }
+
 
 
 class TraceContext:
@@ -82,7 +109,7 @@ class TraceContext:
         self.trace_id = trace_id
         self.name = name
         self.root_span = Span(name=name, trace_id=trace_id)
-        self.spans: list[Span] = []
+        self.spans: list[Span] = [self.root_span]
 
     def __enter__(self) -> "TraceContext":
         """Enter root trace execution context."""
@@ -92,7 +119,6 @@ class TraceContext:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit root trace execution context."""
         self.root_span.__exit__(exc_type, exc_val, exc_tb)
-        self.spans.append(self.root_span)
 
     def span(self, name: str) -> Span:
         """Create a child span linked to this trace.
@@ -117,6 +143,8 @@ class TraceContext:
             "trace_id": self.trace_id,
             "total_duration_ms": self.root_span.duration_ms,
             "status": self.root_span.status,
+            "input": self.root_span.input,
+            "output": self.root_span.output,
             "spans": [s.to_dict() for s in self.spans],
         }
 
