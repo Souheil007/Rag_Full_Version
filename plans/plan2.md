@@ -42,8 +42,9 @@ flowchart TD
 
 ## 📋 Task Checklist
 
-- [ ] Implement mathematical retrieval metrics in `src/evaluation/retrieval_metrics.py`.
-- [ ] Implement LLM-as-a-Judge evaluation prompt & logic in `src/evaluation/generation_metrics.py`.
-- [ ] Create `data/eval/golden_dataset.json` with domain test queries.
-- [ ] Create `src/evaluation/evaluator.py` to calculate aggregate scorecards (0.0 to 1.0).
-- [ ] Add CLI/test runner `tests/eval_benchmark.py` that outputs comparative benchmark tables.
+- [x] Implement mathematical retrieval metrics in `src/evaluation/retrieval_metrics.py`.
+- [x] Implement LLM-as-a-Judge evaluation prompt & logic in `src/evaluation/generation_metrics.py`.
+- [x] Create `data/eval/golden_dataset.json` with domain test queries.
+- [x] Create `src/evaluation/evaluator.py` to calculate aggregate scorecards (0.0 to 1.0).
+- [x] Add automated test runner `tests/test_evaluation.py` that generates comparative Markdown scorecards.
+

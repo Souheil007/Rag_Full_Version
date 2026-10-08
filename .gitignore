@@ -32,9 +32,11 @@ venv/
 ENV/
 
 # Vector database local persistence
-data/
+data/*
+!data/eval/
 chroma_db/
 faiss_index/
+
 
 # Logs
 logs/*.log
