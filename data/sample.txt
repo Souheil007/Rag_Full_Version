@@ -1,0 +1,9 @@
+Retrieval-Augmented Generation (RAG) optimizes the output of large language models by integrating dynamic external knowledge retrieval. Rather than relying solely on static model parameters, RAG queries specialized vector stores and lexical indices to fetch authoritative ground-truth context before prompt synthesis.
+
+Reciprocal Rank Fusion (RRF) is an algorithmic rank-merging technique used to combine diverse retrieval systems. In hybrid architectures, RRF fuses candidate rankings from dense vector embeddings and sparse BM25 search. By calculating reciprocal rank position scores with a smoothing factor, RRF boosts documents that consistently rank near the top across both search paradigms.
+
+Okapi BM25 calculates document relevance through probabilistic lexical matching. The BM25 algorithm scores text candidates using term frequency (TF) and inverse document frequency (IDF), balanced by non-linear term saturation and document length normalization parameters. This guarantees that rare query keywords yield strong relevance signals while preventing lengthy documents from dominating search results.
+
+The document ingestion pipeline processes raw files into structured knowledge chunks for embedding generation and vector storage. The system natively supports multiple document formats for text extraction, including .pdf, .txt, .csv, .md, and .docx files. Once loaded, clean text is divided into overlapping chunks to preserve semantic continuity across paragraph boundaries.
+
+Cross-Encoder re-ranking serves as a precision scoring stage following initial hybrid retrieval. A deep transformer Cross-Encoder evaluates the user query and each candidate passage simultaneously using full cross-attention. This computes fine-grained semantic relevance logits, effectively filtering out noisy or irrelevant context before final LLM answer generation.

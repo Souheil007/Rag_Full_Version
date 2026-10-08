@@ -33,6 +33,7 @@ ENV/
 
 # Vector database local persistence
 data/*
+!data/sample.txt
 !data/eval/
 chroma_db/
 faiss_index/

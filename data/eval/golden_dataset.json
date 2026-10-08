@@ -2,25 +2,25 @@
   {
     "id": "eval_001",
     "query": "What is Reciprocal Rank Fusion (RRF)?",
-    "ground_truth_answer": "Reciprocal Rank Fusion (RRF) is an algorithm for combining search results from multiple retrieval systems by ranking items based on their reciprocal positions.",
-    "ground_truth_ids": ["c1", "c2"]
+    "ground_truth_answer": "Reciprocal Rank Fusion (RRF) is an algorithmic rank-merging technique used to combine diverse retrieval systems like dense vector search and sparse BM25 search by calculating reciprocal rank position scores.",
+    "ground_truth_ids": ["doc_0_chunk_1", "doc_0_chunk_2"]
   },
   {
     "id": "eval_002",
     "query": "How does BM25 keyword search calculate document relevance?",
-    "ground_truth_answer": "Okapi BM25 scores document relevance based on term frequency (TF), inverse document frequency (IDF), and document length normalization parameters.",
-    "ground_truth_ids": ["c3"]
+    "ground_truth_answer": "Okapi BM25 calculates document relevance through probabilistic lexical matching using term frequency (TF) and inverse document frequency (IDF), balanced by term saturation and document length normalization parameters.",
+    "ground_truth_ids": ["doc_0_chunk_3", "doc_0_chunk_4"]
   },
   {
     "id": "eval_003",
     "query": "What are the supported document extensions for ingestion?",
-    "ground_truth_answer": "Supported file extensions for document ingestion include .pdf, .txt, .csv, .md, and .docx.",
-    "ground_truth_ids": ["c4", "c5"]
+    "ground_truth_answer": "The document ingestion pipeline natively supports multiple file formats for text extraction, including .pdf, .txt, .csv, .md, and .docx files.",
+    "ground_truth_ids": ["doc_0_chunk_5", "doc_0_chunk_6"]
   },
   {
     "id": "eval_004",
     "query": "What is the role of Cross-Encoder reranking in RAG?",
-    "ground_truth_answer": "A Cross-Encoder jointly processes the user query and retrieved candidate chunks to score high-precision semantic relevance.",
-    "ground_truth_ids": ["c6"]
+    "ground_truth_answer": "Cross-Encoder re-ranking serves as a precision scoring stage that simultaneously evaluates the query and candidate passages using full cross-attention to compute fine-grained relevance logits and filter out context noise.",
+    "ground_truth_ids": ["doc_0_chunk_7", "doc_0_chunk_8"]
   }
 ]
