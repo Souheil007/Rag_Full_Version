@@ -1,0 +1,46 @@
+app:
+  name: "RAG Full Version"
+  version: "1.0.0"
+  log_level: "INFO"
+
+ingestion:
+  supported_extensions:
+    - ".pdf"
+    - ".txt"
+    - ".csv"
+    - ".md"
+    - ".docx"
+  data_dir: "data"
+
+chunking:
+  strategy: "recursive" # Options: recursive, fixed, token
+  chunk_size: 500
+  chunk_overlap: 50
+  separators: ["\n\n", "\n", " ", ""]
+
+embeddings:
+  provider: "sentence_transformers" # Options: sentence_transformers, openai, gemini
+  model_name: "all-MiniLM-L6-v2"
+  dimension: 384
+  device: "cpu"
+
+vectordb:
+  provider: "chroma" # Options: chroma, faiss, pinecone
+  collection_name: "rag_documents"
+  persist_directory: "./chroma_db"
+
+retrieval:
+  top_k: 5
+  score_threshold: 0.7
+  search_type: "similarity" # Options: similarity, mmr
+
+llm:
+  provider: "gemini" # Options: gemini, openai, anthropic
+  model_name: "gemini-1.5-flash"
+  temperature: 0.2
+  max_output_tokens: 1024
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true
