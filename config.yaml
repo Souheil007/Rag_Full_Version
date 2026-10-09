@@ -14,9 +14,9 @@ ingestion:
 
 chunking:
   strategy: "recursive" # Options: recursive, fixed, token
-  chunk_size: 250
-  chunk_overlap: 30
-  separators: ["\n\n", "\n", " ", ""]
+  chunk_size: 500
+  chunk_overlap: 50
+  separators: ["\n\n", "\n", ". ", " ", ""]
 
 embeddings:
   provider: "sentence_transformers" # Options: sentence_transformers, openai, gemini

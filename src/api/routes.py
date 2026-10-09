@@ -59,7 +59,9 @@ class QueryResponse(BaseModel):
     guardrail_status: str | None = Field(default="approved", description="Guardrail outcome: 'approved' or 'fallback_triggered'.")
     citation_score: float | None = Field(default=1.0, description="Verified citations score (0.0 to 1.0).")
     grounding_score: float | None = Field(default=1.0, description="Entailment grounding score from Jev (0.0 to 1.0).")
+    claims: list[dict[str, Any]] | None = Field(default=None, description="Detailed statements evaluated by Jev.")
     profiling: dict[str, Any] | None = Field(default=None, description="Granular latency and cost profiling breakdown.")
+
 
 
 
@@ -320,6 +322,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
             # 4. Guardrails Verification Span
             guardrail_decision = None
+            evaluated_claims = None
             if guardrails_enabled:
                 with root_trace.span("guardrail_verification") as s_guard:
                     s_guard.set_input({"raw_answer_length": len(generated_answer), "chunks_count": len(retrieved_docs)})
@@ -331,6 +334,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
                         grounding_result=grounding_res,
                     )
                     final_answer = guardrail_decision.final_answer
+                    evaluated_claims = grounding_res.supported_claims + grounding_res.unsupported_claims
                     s_guard.set_attribute("action", guardrail_decision.action_taken)
                     s_guard.set_attribute("citation_score", guardrail_decision.citation_score)
                     s_guard.set_attribute("grounding_score", guardrail_decision.grounding_score)
@@ -338,6 +342,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
                         "approved": guardrail_decision.approved,
                         "reasons": guardrail_decision.reasons,
                         "engine": grounding_res.engine,
+                        "claims_count": len(evaluated_claims),
                     })
             else:
                 final_answer = generated_answer
@@ -398,8 +403,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             guardrail_status=guardrail_decision.action_taken if guardrail_decision else "disabled",
             citation_score=guardrail_decision.citation_score if guardrail_decision else 1.0,
             grounding_score=guardrail_decision.grounding_score if guardrail_decision else 1.0,
+            claims=evaluated_claims,
             profiling=profiling_info,
         )
+
 
 
 
