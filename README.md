@@ -17,7 +17,7 @@ This project intentionally avoids heavy wrapper abstractions (like LangChain or 
 
 Here is the exact flow of data and component execution across the two main pipelines: **Document Ingestion** and **RAG Query Execution**.
 
-### 📊 Visual Architecture Diagram
+#### 📊 Visual Architecture Diagram
 
 ```mermaid
 flowchart TD
@@ -38,9 +38,13 @@ flowchart TD
         B6 --> B7["📝 Prompt Formatter"]
     end
 
-    subgraph Generation ["🤖 3. GENERATION & TELEMETRY"]
+    subgraph Generation ["🤖 3. GENERATION & GUARDRAILS"]
         B7 --> C1["💬 LLM Provider"]
-        C1 --> C2["💡 Grounded Answer"]
+        C1 --> C2["📝 Raw Output"]
+        C2 --> G1["🔍 Tier 1: Citation Verifier"]
+        G1 --> G2["🧠 Tier 2: Jev Entailment Engine"]
+        G2 --> G3["🛡️ Tier 3: Fallback Handler"]
+        G3 --> C3["💡 Verified Safe Response"]
 
         C1 -.-> D1["📊 Langfuse Tracing"]
         C1 -.-> D2["🚨 Sentry APM"]
@@ -71,14 +75,23 @@ flowchart TD
                                     [ 📝 Prompt Formatter ]
                                              │
                                              ▼
- 🤖 GENERATION:                     [ 💬 LLM (Gemini/OpenAI) ]
+ 🤖 GENERATION:                     [ 💬 LLM (Mistral/Gemini) ]
+                                             │
+                                             ▼
+ 🛡️ GUARDRAILS:                     [ 🔍 Tier 1: Citation Verifier ]
+                                             │
+                                             ▼
+                                    [ 🧠 Tier 2: Jev Entailment Engine ]
+                                             │
+                                             ▼
+                                    [ 🚨 Tier 3: Safe Fallback Handler ]
                                              │
                     ┌────────────────────────┴────────────────────────┐
                     ▼                                                 ▼
-             [ 💡 Grounded Answer ]                   [ 📊 Telemetry & Monitoring ]
-                                                      ├─► Langfuse (Traces & Costs)
-                                                      ├─► Sentry (Exceptions & APM)
-                                                      └─► Local JSONL Logs
+             [ 💡 Verified Safe Response ]             [ 📊 Telemetry & Monitoring ]
+                                                       ├─► Langfuse (Traces & Costs)
+                                                       ├─► Sentry (Exceptions & APM)
+                                                       └─► Local JSONL Logs
 ===================================================================================
 ```
 
@@ -101,10 +114,14 @@ flowchart TD
    * **Cross-Encoder Reranker** scores the top candidates jointly with the query for maximum precision.
    * *(Optional)* **Context Compression** prunes redundant or noisy sentences.
 3. **Prompt Formatting**: `format_rag_prompt()` injects top chunks into standard system instruction templates with source attribution tags.
-4. **LLM Generation**: `LLMClient` calls the selected provider (`Gemini 2.0 Flash`, `OpenAI`, or `Anthropic`) to generate the final grounded response.
+4. **LLM Generation**: `LLMClient` calls the selected provider (`Mistral`, `Gemini`, `OpenAI`, or `Anthropic`) to generate the raw response.
+5. **Multi-Tier Guardrail Verification**:
+   * **Tier 1 (Citation Verifier)**: Deterministic regex parsing validating that numeric citations (`[1]`, `[2]`) and file sources (`[Source: doc.pdf]`) exist within retrieved context.
+   * **Tier 2 (Hallucination Detector & Jev)**: Decomposes assertions into claims and verifies entailment via the **Jev** discriminative decision engine (or gracefully bypasses Tier 2 if Jev is down/unresponsive).
+   * **Tier 3 (Fallback Handler)**: In strict mode, intercepts any citation failure or ungrounded statement and replaces it with a standardized safe refusal message.
 
 #### 3. Observability & Monitoring Phase
-* **Langfuse Tracing**: Exports hierarchical trace trees (retrieval duration, prompt payload, generation latency, and token counts) to Langfuse.
+* **Langfuse Tracing**: Exports hierarchical trace trees (retrieval duration, prompt payload, generation latency, guardrail execution, and token counts) to Langfuse.
 * **Sentry Error Monitoring**: Intercepts unhandled ASGI exceptions and logs APM profiling sessions to Sentry.
 * **Local JSONL Logging**: Appends execution logs locally in `logs/traces.jsonl`.
 
@@ -118,10 +135,11 @@ The repository follows a structured engineering roadmap detailed in the [`plans/
 | :--- | :--- | :---: | :--- |
 | **[Plan 1](plans/plan1.md)** | **Advanced Hybrid Retrieval & Re-ranking** | ✅ Complete | Sparse BM25 + Dense Vector search with Reciprocal Rank Fusion (RRF), Cross-Encoder Re-ranking, and Contextual Sentence Compression. |
 | **[Plan 2](plans/plan2.md)** | **Evaluation Engine (LLM-as-a-Judge)** | ✅ Complete | Precision@K, Recall@K, Hit Rate, MRR, Faithfulness / Groundedness, and automated Golden Dataset benchmarking. |
+| **[Plan 3](plans/plan3.md)** | **Failure Modes & Guardrails (Jev)** | ✅ Complete | Multi-tiered guardrails with deterministic citation bounds checking, statement entailment via Jev discriminative decision model, and safe fallback handling. |
 | **[Plan 6](plans/plan6.md)** | **Observability & Sentry Error Monitoring** | ✅ Complete | End-to-end span tracing (`Tracer`), operational metrics (`MetricsCollector`), Langfuse observability, and Sentry APM error monitoring. |
-| **[Plan 3](plans/plan3.md)** | **Failure Modes & Guardrails** | ⏳ Pending | Citation verification, statement entailment checks, and graceful fallback handling for out-of-domain queries. |
 | **[Plan 4](plans/plan4.md)** | **Cost & Latency Optimization** | ⏳ Pending | Semantic vector query cache ($0 repeat cost), query complexity router (Flash vs. Pro), and token/latency profiler. |
 | **[Plan 5](plans/plan5.md)** | **System Design & 100x Scaling (ADRs)** | ⏳ Pending | Architecture Decision Records (RAG vs. Fine-Tuning, 100x scale sharding), and Senior AI Interview Cheat Sheet. |
+
 
 
 
@@ -138,12 +156,19 @@ Rag_Full_Version/
 ├── config.yaml                    # Central configuration file
 ├── AGENTS.md                      # Coding standards & agent instructions
 ├── main.py                        # Service entry point
+├── docs/                          # Comprehensive architectural guides & benchmarks
+│   ├── GUARDRAILS_AND_FALLBACK_GUIDE.md  # 3-Tier guardrails, Jev entailment & fallback
+│   ├── RETRIEVAL_METRICS_AND_SCORES.md   # Distance, BM25, RRF & Cross-Encoder scores
+│   ├── EVALUATION_METRICS_GUIDE.md       # Precision@K, Recall@K, MRR & LLM Judge
+│   ├── TOP_K_TUNING_GUIDE.md             # Two-stage retrieval sizing & cost tuning
+│   └── OBSERVABILITY_VS_MONITORING.md    # Langfuse semantic tracing vs Sentry APM
 ├── plans/                         # Step-by-step engineering plans
 │   ├── plan1.md                   # Plan 1: Hybrid Retrieval & Re-ranking (Done)
-│   ├── plan2.md                   # Plan 2: Evaluation & Metrics Engine
-│   ├── plan3.md                   # Plan 3: Failure Modes & Guardrails
+│   ├── plan2.md                   # Plan 2: Evaluation & Metrics Engine (Done)
+│   ├── plan3.md                   # Plan 3: Failure Modes & Guardrails (Done)
 │   ├── plan4.md                   # Plan 4: Cost & Latency Optimization
-│   └── plan5.md                   # Plan 5: System Design & Scaling ADRs
+│   ├── plan5.md                   # Plan 5: System Design & Scaling ADRs
+│   └── plan6.md                   # Plan 6: Observability & Sentry Monitoring (Done)
 ├── .agents/
 │   └── skills/
 │       └── rag-conventions/
@@ -168,12 +193,24 @@ Rag_Full_Version/
 │   │   ├── hybrid_retriever.py    # Reciprocal Rank Fusion (RRF)
 │   │   ├── reranker.py            # Cross-Encoder re-ranker
 │   │   └── retriever.py           # Unified Retriever Facade
+│   ├── guardrails/                # Multi-tier guardrails & hallucination prevention
+│   │   ├── __init__.py
+│   │   ├── citation_verifier.py   # Tier 1 deterministic citation bounds checker
+│   │   ├── hallucination_detector.py # Tier 2 claim-level entailment verifier
+│   │   ├── jev_client.py          # Fast discriminative decision model client
+│   │   └── fallback_handler.py    # Tier 3 policy enforcement & safe fallback
 │   ├── prompts/                   # Prompt templates & context formatting
 │   │   ├── __init__.py
 │   │   └── prompt_templates.py
 │   ├── llm/                       # LLM provider clients (Gemini, OpenAI, Anthropic)
 │   │   ├── __init__.py
 │   │   └── llm_client.py
+│   ├── observability/             # Distributed tracing, APM, and metrics
+│   │   ├── __init__.py
+│   │   ├── tracer.py
+│   │   ├── metrics_collector.py
+│   │   ├── sentry_monitor.py
+│   │   └── span_exporter.py
 │   ├── api/                       # FastAPI REST endpoints
 │   │   ├── __init__.py
 │   │   └── routes.py
@@ -183,9 +220,13 @@ Rag_Full_Version/
 ├── tests/                         # Unit & integration test suites
 │   ├── __init__.py
 │   ├── test_app.py
-│   └── test_hybrid_retriever.py
+│   ├── test_guardrails.py
+│   ├── test_hybrid_retriever.py
+│   ├── test_evaluation.py
+│   └── test_observability.py
 └── logs/                          # Application log files
     └── .gitkeep
+
 ```
 
 ---
