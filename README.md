@@ -98,27 +98,32 @@ flowchart TD
 
 ### ⚙️ Step-by-Step Breakdown
 
-#### 1. Ingestion & Indexing Phase (`POST /index`)
-1. **Document Loading**: `DocumentLoader` scans the target folder and parses supported file formats (`.pdf`, `.txt`, `.csv`, `.md`, `.docx`).
-2. **Text Chunking**: `TextChunker` splits documents into overlapping character chunks using configured separators.
-3. **Dense Embedding Generation**: `Embedder` batch-calculates dense vector representations (e.g. 384-dimensional `all-MiniLM-L6-v2` embeddings).
-4. **Dual Indexing**:
-   * **Dense Vectors** are persisted to `ChromaDB` (or `FAISS`).
-   * **Sparse Term Frequencies** are fitted into an `Okapi BM25` index for exact keyword matching.
+#### 1. Ingestion & Indexing Phase (`POST /index` & `DELETE /index`)
+* **Incremental Ingestion (`POST /index`)**:
+  1. **Document Loading**: `DocumentLoader` scans the target folder and parses supported file formats (`.pdf`, `.txt`, `.csv`, `.md`, `.docx`).
+  2. **Boundary-Aware Text Chunking**: `TextChunker` recursively divides text along natural structural boundaries (`\n\n`, `\n`, sentence endings, word breaks) to ensure zero mid-word cuts and paragraph integrity.
+  3. **Dense Embedding Generation**: `Embedder` batch-calculates dense representations (e.g. 384-dimensional `all-MiniLM-L6-v2` vectors).
+  4. **Dual Incremental Indexing**:
+     * **Dense Vectors** are upserted into `ChromaDB` (`vector_store.add_documents()` with `upsert`), preventing duplicate keys.
+     * **Sparse Term Frequencies** are incrementally merged into the in-memory `Okapi BM25` corpus via `bm25_retriever.add_documents()`.
+* **Corpus Reset (`DELETE /index`)**:
+  * Atomically purges all dense vectors from `ChromaDB`, clears the in-memory `BM25` corpus/statistics, and flushes the `SemanticCache`.
 
-#### 2. Querying & Generation Phase (`POST /query`)
-1. **Tracing Started**: `Tracer` creates a unique `trace_id` for distributed observability.
-2. **Hybrid Retrieval (`Retriever`)**:
+#### 2. Querying, Caching & Generation Phase (`POST /query`)
+1. **Semantic Cache Lookup**: Evaluates query cosine similarity against cached vectors (`similarity_threshold >= 0.95`). If a verified cached response exists, returns immediately ($0 LLM cost, ~5-15ms latency).
+2. **Tracing Started**: `Tracer` creates a unique `trace_id` for distributed observability.
+3. **Hybrid Retrieval (`Retriever`)**:
    * Runs **Dense Vector Search** (semantic similarity) and **Sparse BM25 Search** (exact keyphrase match) in parallel.
    * **Reciprocal Rank Fusion (RRF)** combines both candidate lists into a unified score array.
    * **Cross-Encoder Reranker** scores the top candidates jointly with the query for maximum precision.
    * *(Optional)* **Context Compression** prunes redundant or noisy sentences.
-3. **Prompt Formatting**: `format_rag_prompt()` injects top chunks into standard system instruction templates with source attribution tags.
-4. **LLM Generation**: `LLMClient` calls the selected provider (`Mistral`, `Gemini`, `OpenAI`, or `Anthropic`) to generate the raw response.
-5. **Multi-Tier Guardrail Verification**:
+4. **Prompt Formatting**: `format_rag_prompt()` injects top chunks into standard system instruction templates with strict grounding constraints.
+5. **LLM Generation**: `LLMClient` calls the selected provider (`Mistral`, `Gemini`, `OpenAI`, or `Anthropic`) to generate the raw response.
+6. **Multi-Tier Guardrail Verification**:
    * **Tier 1 (Citation Verifier)**: Deterministic regex parsing validating that numeric citations (`[1]`, `[2]`) and file sources (`[Source: doc.pdf]`) exist within retrieved context.
    * **Tier 2 (Hallucination Detector & Jev)**: Decomposes assertions into claims and verifies entailment via the **Jev** discriminative decision engine (or gracefully bypasses Tier 2 if Jev is down/unresponsive).
    * **Tier 3 (Fallback Handler)**: In strict mode, intercepts any citation failure or ungrounded statement and replaces it with a standardized safe refusal message.
+   * **Cache Storage**: Verified, approved answers are saved into the bounded LRU semantic cache with TTL.
 
 #### 3. Observability & Monitoring Phase
 * **Langfuse Tracing**: Exports hierarchical trace trees (retrieval duration, prompt payload, generation latency, guardrail execution, and token counts) to Langfuse.
@@ -137,7 +142,7 @@ The repository follows a structured engineering roadmap detailed in the [`plans/
 | **[Plan 2](plans/plan2.md)** | **Evaluation Engine (LLM-as-a-Judge)** | ✅ Complete | Precision@K, Recall@K, Hit Rate, MRR, Faithfulness / Groundedness, and automated Golden Dataset benchmarking. |
 | **[Plan 3](plans/plan3.md)** | **Failure Modes & Guardrails (Jev)** | ✅ Complete | Multi-tiered guardrails with deterministic citation bounds checking, statement entailment via Jev discriminative decision model, and safe fallback handling. |
 | **[Plan 6](plans/plan6.md)** | **Observability & Sentry Error Monitoring** | ✅ Complete | End-to-end span tracing (`Tracer`), operational metrics (`MetricsCollector`), Langfuse observability, and Sentry APM error monitoring. |
-| **[Plan 4](plans/plan4.md)** | **Cost & Latency Optimization** | ⏳ Pending | Semantic vector query cache ($0 repeat cost), query complexity router (Flash vs. Pro), and token/latency profiler. |
+| **[Plan 4](plans/plan4.md)** | **Cost & Latency Optimization** | ✅ Complete | Semantic vector query cache ($0 repeat cost), query complexity router (Flash vs. Pro), and token/latency profiler. |
 | **[Plan 5](plans/plan5.md)** | **System Design & 100x Scaling (ADRs)** | ⏳ Pending | Architecture Decision Records (RAG vs. Fine-Tuning, 100x scale sharding), and Senior AI Interview Cheat Sheet. |
 
 
@@ -166,7 +171,7 @@ Rag_Full_Version/
 │   ├── plan1.md                   # Plan 1: Hybrid Retrieval & Re-ranking (Done)
 │   ├── plan2.md                   # Plan 2: Evaluation & Metrics Engine (Done)
 │   ├── plan3.md                   # Plan 3: Failure Modes & Guardrails (Done)
-│   ├── plan4.md                   # Plan 4: Cost & Latency Optimization
+│   ├── plan4.md                   # Plan 4: Cost & Latency Optimization (Done)
 │   ├── plan5.md                   # Plan 5: System Design & Scaling ADRs
 │   └── plan6.md                   # Plan 6: Observability & Sentry Monitoring (Done)
 ├── .agents/
@@ -199,6 +204,11 @@ Rag_Full_Version/
 │   │   ├── hallucination_detector.py # Tier 2 claim-level entailment verifier
 │   │   ├── jev_client.py          # Fast discriminative decision model client
 │   │   └── fallback_handler.py    # Tier 3 policy enforcement & safe fallback
+│   ├── optimization/              # Cost & latency optimization (Plan 4)
+│   │   ├── __init__.py
+│   │   ├── semantic_cache.py      # Bounded LRU semantic vector cache
+│   │   ├── query_router.py        # Complexity-based query router
+│   │   └── profiler.py            # Latency and cost profiler
 │   ├── prompts/                   # Prompt templates & context formatting
 │   │   ├── __init__.py
 │   │   └── prompt_templates.py
@@ -223,7 +233,8 @@ Rag_Full_Version/
 │   ├── test_guardrails.py
 │   ├── test_hybrid_retriever.py
 │   ├── test_evaluation.py
-│   └── test_observability.py
+│   ├── test_observability.py
+│   └── test_optimization.py
 └── logs/                          # Application log files
     └── .gitkeep
 
