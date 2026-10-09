@@ -71,6 +71,27 @@ class BM25Retriever:
 
         logger.info(f"Fitted BM25 index with {num_docs} chunks and {len(self.idf)} unique terms.")
 
+    def add_documents(self, documents: list[dict[str, Any]]) -> None:
+        """Incrementally append documents to the existing BM25 corpus and refit.
+
+        Args:
+            documents: List of new document chunk dictionaries.
+        """
+        existing_ids = {d.get("chunk_id") for d in self.corpus}
+        new_docs = [d for d in documents if d.get("chunk_id") not in existing_ids]
+        combined = self.corpus + new_docs
+        self.fit(combined)
+
+    def clear(self) -> None:
+        """Clear the entire BM25 corpus and reset term index statistics."""
+        self.corpus = []
+        self.doc_lengths = []
+        self.doc_freqs = {}
+        self.idf = {}
+        self.avg_doc_len = 0.0
+        logger.info("Cleared BM25 index and corpus.")
+
+
     def retrieve(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
         """Retrieve top-k documents matching the query based on BM25 scores.
 

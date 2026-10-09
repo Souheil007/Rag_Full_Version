@@ -80,6 +80,28 @@ class TestHybridRetriever(unittest.TestCase):
         self.assertIn("Python 3.12 introduces major performance improvements", compressed)
         self.assertNotIn("The sky is blue today", compressed)
 
+    def test_bm25_incremental_add_and_clear(self):
+        """Verify BM25 incrementally accumulates documents and clears correctly."""
+        bm25 = BM25Retriever()
+        doc1 = [{"chunk_id": "c1", "chunk_text": "First batch doc about artificial intelligence."}]
+        bm25.fit(doc1)
+        self.assertEqual(len(bm25.corpus), 1)
+
+        # Incrementally add second batch
+        doc2 = [{"chunk_id": "c2", "chunk_text": "Second batch doc about quantum computing."}]
+        bm25.add_documents(doc2)
+        self.assertEqual(len(bm25.corpus), 2)
+
+        # Adding same doc ID should not duplicate
+        bm25.add_documents(doc2)
+        self.assertEqual(len(bm25.corpus), 2)
+
+        # Clear
+        bm25.clear()
+        self.assertEqual(len(bm25.corpus), 0)
+        self.assertEqual(bm25.avg_doc_len, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
+

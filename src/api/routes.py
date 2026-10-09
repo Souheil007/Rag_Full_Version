@@ -214,12 +214,24 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
         # Index in Vector Store and BM25 index
         vector_store.add_documents(chunks, embeddings)
-        bm25_retriever.fit(chunks)
+        bm25_retriever.add_documents(chunks)
 
         return {
             "status": "success",
             "indexed_documents": len(docs),
             "indexed_chunks": len(chunks),
+        }
+
+    @app.delete("/index", response_model=dict[str, Any])
+    def delete_index() -> dict[str, Any]:
+        """Delete all indexed documents from vector store, BM25, and flush cache."""
+        deleted_count = vector_store.clear()
+        bm25_retriever.clear()
+        semantic_cache.clear()
+        return {
+            "status": "success",
+            "message": "All vector documents, BM25 indices, and semantic cache successfully deleted.",
+            "deleted_chunks": deleted_count,
         }
 
     @app.post("/query", response_model=QueryResponse)

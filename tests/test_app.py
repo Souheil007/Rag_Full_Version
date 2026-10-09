@@ -79,6 +79,34 @@ class TestApp(unittest.TestCase):
         except ImportError:
             self.skipTest("fastapi not installed in environment.")
 
+    def test_delete_and_incremental_index_endpoints(self):
+        """Verify DELETE /index resets corpus and POST /index works with TestClient."""
+        try:
+            from fastapi.testclient import TestClient
+            from src.api.routes import create_app
+
+            app = create_app()
+            client = TestClient(app)
+
+            # DELETE /index initially
+            del_resp = client.delete("/index")
+            self.assertEqual(del_resp.status_code, 200)
+            data = del_resp.json()
+            self.assertEqual(data["status"], "success")
+            self.assertIn("deleted_chunks", data)
+
+            # POST /index
+            idx_resp1 = client.post("/index", json={"dir_path": "data"})
+            self.assertEqual(idx_resp1.status_code, 200)
+            c1 = idx_resp1.json()["indexed_chunks"]
+            self.assertGreater(c1, 0)
+
+            # Second DELETE /index cleans up
+            del_resp2 = client.delete("/index")
+            self.assertEqual(del_resp2.status_code, 200)
+            self.assertGreaterEqual(del_resp2.json()["deleted_chunks"], c1)
+        except ImportError:
+            self.skipTest("fastapi/testclient not available.")
 
 
 if __name__ == "__main__":

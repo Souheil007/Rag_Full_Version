@@ -72,17 +72,45 @@ class VectorStore:
             documents = [chunk["chunk_text"] for chunk in chunks]
             metadatas = [chunk.get("metadata", {}) for chunk in chunks]
 
-            self._collection.add(
-                ids=ids,
-                embeddings=embeddings,
-                documents=documents,
-                metadatas=metadatas,
-            )
-            logger.info(f"Added {len(chunks)} chunks to ChromaDB collection.")
+            if hasattr(self._collection, "upsert"):
+                self._collection.upsert(
+                    ids=ids,
+                    embeddings=embeddings,
+                    documents=documents,
+                    metadatas=metadatas,
+                )
+            else:
+                self._collection.add(
+                    ids=ids,
+                    embeddings=embeddings,
+                    documents=documents,
+                    metadatas=metadatas,
+                )
+            logger.info(f"Indexed {len(chunks)} chunks into ChromaDB collection.")
         else:
             for chunk, emb in zip(chunks, embeddings):
                 self._documents.append({"chunk": chunk, "embedding": emb})
             logger.info(f"Appended {len(chunks)} chunks to in-memory store.")
+
+    def clear(self) -> int:
+        """Clear all stored documents and vectors.
+
+        Returns:
+            Number of documents that were deleted.
+        """
+        self._init_db()
+        count = 0
+        if self._collection is not None and self._client != "in_memory":
+            count = self._collection.count()
+            self._client.delete_collection(name=self.collection_name)
+            self._collection = self._client.get_or_create_collection(name=self.collection_name)
+            logger.info("Cleared %d chunks from ChromaDB collection '%s'.", count, self.collection_name)
+        elif isinstance(self._documents, list):
+            count = len(self._documents)
+            self._documents.clear()
+            logger.info("Cleared %d chunks from in-memory store.", count)
+        return count
+
 
     def query(
         self,
