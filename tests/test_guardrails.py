@@ -91,13 +91,14 @@ def test_citation_verifier_no_citations(sample_retrieved_docs):
 
 def test_jev_client_unconfigured_bypasses():
     """Verify Tier 2 is bypassed when no Jev API key is configured."""
-    client = JevClient(api_key=None)
+    client = JevClient(api_key="")
     res = client.check_entailment("Any claim", "Any context")
 
     assert res["is_supported"] is True
     assert res["bypassed"] is True
     assert res["engine"] == "bypassed"
     assert res["decision"] == "bypassed"
+
 
 
 @patch("src.guardrails.jev_client.httpx.Client")
@@ -282,7 +283,14 @@ def test_api_query_guardrail_telemetry(monkeypatch):
     ]
 
     with patch("src.retrieval.retriever.Retriever.retrieve", return_value=mock_retrieved), \
-         patch("src.llm.llm_client.LLMClient.generate", return_value="The Eiffel Tower was built in 1889 [1]."):
+         patch("src.llm.llm_client.LLMClient.generate", return_value="The Eiffel Tower was built in 1889 [1]."), \
+         patch("src.guardrails.jev_client.JevClient.check_entailment", return_value={
+             "is_supported": True,
+             "confidence": 0.98,
+             "decision": "supported",
+             "engine": "jev",
+             "bypassed": False,
+         }):
         resp = client.post("/query", json={"query": "When was Eiffel Tower built?"})
 
     assert resp.status_code == 200
@@ -292,3 +300,4 @@ def test_api_query_guardrail_telemetry(monkeypatch):
     assert data["guardrail_status"] == "approved"
     assert data["citation_score"] == 1.0
     assert data["grounding_score"] >= 0.8
+

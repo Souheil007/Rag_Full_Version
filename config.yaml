@@ -45,7 +45,7 @@ guardrails:
   citation_enforcement: true
   entailment_engine: "jev" # Options: jev, heuristic, mock
   jev:
-    model: "typesafe/jev"
+    model: "jev-1.13.0"
     api_base: "https://api.typesafe.ai/v1"
     confidence_threshold: 0.85
     timeout_seconds: 3.0
