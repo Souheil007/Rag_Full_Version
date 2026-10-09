@@ -241,10 +241,12 @@ pytest -v
 
 ## 📚 In-Depth Documentation
 
+* [**Guardrails & Hallucination Prevention Guide**](docs/GUARDRAILS_AND_FALLBACK_GUIDE.md): 3-tier guardrail architecture using Jev discriminative entailment, regex citation bounds verification, fallback trigger mechanics, and zero-downtime execution.
 * [**Retrieval Metrics and Scoring Guide**](docs/RETRIEVAL_METRICS_AND_SCORES.md): Complete breakdown of `distance`, `score`, `bm25_score`, `rrf_score`, and `rerank_score`, including mathematical formulas, healthy ranges, and real-world interpretations.
 * [**Evaluation Metrics & Benchmark Guide**](docs/EVALUATION_METRICS_GUIDE.md): Mathematical breakdown of Precision@K, Recall@K, Hit Rate, MRR, and LLM-as-a-Judge generation metrics (Faithfulness & Relevance) with live benchmark results.
 * [**Top-K Tuning & Retrieval Sizing Guide**](docs/TOP_K_TUNING_GUIDE.md): Practical guide on how to choose optimal $K$, why the $4\times$ candidate multiplier is used, and how to balance Recall vs. prompt cost.
 * [**Observability vs. Monitoring Guide**](docs/OBSERVABILITY_VS_MONITORING.md): Architectural guide explaining how semantic observability (Langfuse) catches "silent" RAG failures that traditional APMs (Sentry/Datadog) miss.
+
 
 ---
 

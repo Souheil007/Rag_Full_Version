@@ -40,9 +40,21 @@ llm:
   temperature: 0.2
   max_output_tokens: 1024
 
-
+guardrails:
+  enabled: true
+  citation_enforcement: true
+  entailment_engine: "jev" # Options: jev, heuristic, mock
+  jev:
+    model: "typesafe/jev"
+    api_base: "https://api.typesafe.ai/v1"
+    confidence_threshold: 0.85
+    timeout_seconds: 3.0
+  fallback:
+    strict_mode: true
+    fallback_message: "I cannot find sufficient factual backing in the retrieved documents to answer this reliably."
 
 api:
   host: "0.0.0.0"
   port: 8000
   reload: true
+

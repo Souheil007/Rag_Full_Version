@@ -5,6 +5,10 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from src.chunking.chunker import TextChunker
 from src.embeddings.embedder import Embedder
+from src.guardrails.citation_verifier import CitationVerifier
+from src.guardrails.fallback_handler import DEFAULT_FALLBACK_MESSAGE, FallbackHandler
+from src.guardrails.hallucination_detector import HallucinationDetector
+from src.guardrails.jev_client import JevClient
 from src.ingestion.loader import DocumentLoader
 from src.llm.llm_client import LLMClient
 from src.observability.metrics_collector import MetricsCollector
@@ -49,6 +53,10 @@ class QueryResponse(BaseModel):
     trace_id: str
     latency_ms: float
     estimated_cost_usd: float
+    guardrail_status: str | None = Field(default="approved", description="Guardrail outcome: 'approved' or 'fallback_triggered'.")
+    citation_score: float | None = Field(default=1.0, description="Verified citations score (0.0 to 1.0).")
+    grounding_score: float | None = Field(default=1.0, description="Entailment grounding score from Jev (0.0 to 1.0).")
+
 
 
 class IndexDirectoryRequest(BaseModel):
@@ -125,6 +133,27 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         max_output_tokens=cfg.get("llm", {}).get("max_output_tokens", 1024),
     )
 
+    # Initialize Guardrails Components
+    guardrails_cfg = cfg.get("guardrails", {})
+    guardrails_enabled = guardrails_cfg.get("enabled", True)
+    jev_cfg = guardrails_cfg.get("jev", {})
+    fallback_cfg = guardrails_cfg.get("fallback", {})
+
+    jev_client = JevClient(
+        api_base=jev_cfg.get("api_base", "https://api.typesafe.ai/v1"),
+        model_name=jev_cfg.get("model", "typesafe/jev"),
+        timeout_seconds=jev_cfg.get("timeout_seconds", 3.0),
+    )
+    citation_verifier = CitationVerifier()
+    hallucination_detector = HallucinationDetector(
+        jev_client=jev_client,
+        confidence_threshold=jev_cfg.get("confidence_threshold", 0.85),
+    )
+    fallback_handler = FallbackHandler(
+        fallback_message=fallback_cfg.get("fallback_message", DEFAULT_FALLBACK_MESSAGE),
+        strict_mode=fallback_cfg.get("strict_mode", True),
+    )
+
     @app.get("/health")
     def health_check() -> dict[str, str]:
         """Health check endpoint to verify server status."""
@@ -196,19 +225,42 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             # 3. LLM Generation Span
             with root_trace.span("llm_generation") as s_llm:
                 s_llm.set_input({"prompt": prompt, "model": model_name})
-                answer = llm_client.generate(prompt, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
+                generated_answer = llm_client.generate(prompt, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
                 s_llm.set_attribute("model", model_name)
-                s_llm.set_output({"answer": answer})
+                s_llm.set_output({"answer": generated_answer})
 
-            root_trace.root_span.set_output({"answer": answer, "sources_count": len(retrieved_docs)})
+            # 4. Guardrails Verification Span
+            guardrail_decision = None
+            if guardrails_enabled:
+                with root_trace.span("guardrail_verification") as s_guard:
+                    s_guard.set_input({"raw_answer_length": len(generated_answer), "chunks_count": len(retrieved_docs)})
+                    citation_res = citation_verifier.verify_citations(generated_answer, retrieved_docs)
+                    grounding_res = hallucination_detector.verify_grounding(generated_answer, retrieved_docs)
+                    guardrail_decision = fallback_handler.evaluate_and_enforce(
+                        answer=generated_answer,
+                        citation_result=citation_res,
+                        grounding_result=grounding_res,
+                    )
+                    final_answer = guardrail_decision.final_answer
+                    s_guard.set_attribute("action", guardrail_decision.action_taken)
+                    s_guard.set_attribute("citation_score", guardrail_decision.citation_score)
+                    s_guard.set_attribute("grounding_score", guardrail_decision.grounding_score)
+                    s_guard.set_output({
+                        "approved": guardrail_decision.approved,
+                        "reasons": guardrail_decision.reasons,
+                        "engine": grounding_res.engine,
+                    })
+            else:
+                final_answer = generated_answer
 
+            root_trace.root_span.set_output({"answer": final_answer, "sources_count": len(retrieved_docs)})
 
         summary = root_trace.get_summary()
         exporter.export(summary)
 
         # Estimate tokens (approx 4 chars per token)
         input_tokens = len(prompt) // 4
-        output_tokens = len(answer) // 4
+        output_tokens = len(final_answer) // 4
         cost = metrics.estimate_cost(model_name, input_tokens, output_tokens)
 
         # Record operational metrics
@@ -223,12 +275,16 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         return QueryResponse(
             query=req.query,
             search_type=req.search_type,
-            answer=answer,
+            answer=final_answer,
             sources=retrieved_docs,
             trace_id=summary["trace_id"],
             latency_ms=summary["total_duration_ms"],
             estimated_cost_usd=cost,
+            guardrail_status=guardrail_decision.action_taken if guardrail_decision else "disabled",
+            citation_score=guardrail_decision.citation_score if guardrail_decision else 1.0,
+            grounding_score=guardrail_decision.grounding_score if guardrail_decision else 1.0,
         )
+
 
     @app.post("/evaluate", response_model=dict[str, Any])
     def run_benchmark_evaluation(dataset_path: str = "data/eval/golden_dataset.json") -> dict[str, Any]:
