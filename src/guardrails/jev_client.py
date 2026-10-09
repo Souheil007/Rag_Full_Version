@@ -41,6 +41,8 @@ class JevClient:
     ) -> dict[str, Any]:
         """Verify whether a factual assertion is entailed by the retrieved context.
 
+        If Jev is down, unresponsive, or unconfigured, bypasses Tier 2.
+
         Args:
             claim: Specific statement or proposition to verify.
             context: Retrieved reference text chunks.
@@ -51,9 +53,19 @@ class JevClient:
         """
         start_time = time.perf_counter()
 
-        # Offline / deterministic fallback when no API key is provided
+        # If no API key is provided, bypass Tier 2
         if not self.api_key:
-            return self._heuristic_entailment_fallback(claim, context, start_time)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            logger.info("Jev API key not configured; bypassing Tier 2 entailment check")
+            return {
+                "is_supported": True,
+                "confidence": 1.0,
+                "decision": "bypassed",
+                "latency_ms": round(latency_ms, 2),
+                "engine": "bypassed",
+                "bypassed": True,
+                "reason": "Missing JEV_API_KEY",
+            }
 
         try:
             # TypeSafe / OpenRouter Decision API structure
@@ -85,67 +97,30 @@ class JevClient:
                         "decision": decision,
                         "latency_ms": round(latency_ms, 2),
                         "engine": "jev",
+                        "bypassed": False,
                     }
 
-                logger.warning("Jev API returned HTTP %s: %s", resp.status_code, resp.text)
-                return self._heuristic_entailment_fallback(claim, context, start_time)
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                logger.warning("Jev API returned HTTP %s (%s); bypassing Tier 2 check", resp.status_code, resp.text)
+                return {
+                    "is_supported": True,
+                    "confidence": 1.0,
+                    "decision": "bypassed",
+                    "latency_ms": round(latency_ms, 2),
+                    "engine": "bypassed",
+                    "bypassed": True,
+                    "reason": f"Jev HTTP {resp.status_code}",
+                }
 
         except Exception as exc:
-            logger.warning("Jev API call failed (%s); falling back to heuristic", exc)
-            return self._heuristic_entailment_fallback(claim, context, start_time)
-
-    def _heuristic_entailment_fallback(
-        self,
-        claim: str,
-        context: str,
-        start_time: float,
-    ) -> dict[str, Any]:
-        """Perform token overlap heuristic entailment check when API is unavailable.
-
-        Args:
-            claim: Statement to verify.
-            context: Context text to check against.
-            start_time: Perf counter start timestamp.
-
-        Returns:
-            Entailment result dictionary.
-        """
-        latency_ms = (time.perf_counter() - start_time) * 1000
-        claim_clean = claim.lower().strip()
-        context_clean = context.lower().strip()
-
-        # Check exact or strong substring match
-        if claim_clean in context_clean:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            logger.warning("Jev service unresponsive or timed out (%s); bypassing Tier 2 check", exc)
             return {
                 "is_supported": True,
                 "confidence": 1.0,
-                "decision": "supported",
+                "decision": "bypassed",
                 "latency_ms": round(latency_ms, 2),
-                "engine": "heuristic_fallback",
+                "engine": "bypassed",
+                "bypassed": True,
+                "reason": f"Jev error/timeout: {exc}",
             }
-
-        # Token set overlap check for non-stop words
-        claim_tokens = {w for w in claim_clean.split() if len(w) > 3}
-        if not claim_tokens:
-            return {
-                "is_supported": True,
-                "confidence": 0.9,
-                "decision": "supported",
-                "latency_ms": round(latency_ms, 2),
-                "engine": "heuristic_fallback",
-            }
-
-        context_tokens = set(context_clean.split())
-        overlap = claim_tokens.intersection(context_tokens)
-        ratio = len(overlap) / len(claim_tokens)
-
-        is_supported = ratio >= 0.70
-        confidence = round(ratio, 3)
-
-        return {
-            "is_supported": is_supported,
-            "confidence": confidence,
-            "decision": "supported" if is_supported else "unsupported",
-            "latency_ms": round(latency_ms, 2),
-            "engine": "heuristic_fallback",
-        }

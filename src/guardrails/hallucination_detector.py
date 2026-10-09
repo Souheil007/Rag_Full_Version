@@ -140,6 +140,23 @@ class HallucinationDetector:
                 context=combined_context,
                 confidence_threshold=self.confidence_threshold,
             )
+
+            # If Jev is down, unresponsive, or unconfigured, bypass Tier 2 immediately
+            if verdict.get("bypassed", False):
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                reason = verdict.get("reason", "service unavailable")
+                logger.info("Bypassing Tier 2 hallucination check: %s", reason)
+                return GroundingResult(
+                    is_grounded=True,
+                    grounding_score=1.0,
+                    total_claims=len(claims),
+                    supported_claims=[],
+                    unsupported_claims=[],
+                    latency_ms=round(latency_ms, 2),
+                    engine="bypassed",
+                    details=f"Jev is down or unresponsive ({reason}); Tier 2 hallucination check bypassed.",
+                )
+
             engine_used = verdict.get("engine", "jev")
 
             record = {
@@ -152,6 +169,7 @@ class HallucinationDetector:
                 supported_claims.append(record)
             else:
                 unsupported_claims.append(record)
+
 
         total = len(claims)
         score = len(supported_claims) / total if total > 0 else 1.0

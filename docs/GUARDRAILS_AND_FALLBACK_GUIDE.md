@@ -124,11 +124,13 @@ guardrails:
 | `true` | `true` (Default) | **Strict Protection.** Any citation mismatch or ungrounded claim triggers the safe fallback. |
 | `true` | `false` | **Soft Warning.** Guardrail scores are logged and included in API telemetry, but raw answer is permitted. |
 
-### 4.3 High-Availability Heuristic Fallback (Zero Downtime)
-If the Jev API key (`JEV_API_KEY` or `OPENROUTER_API_KEY`) is not configured, or if the external API experiences a network timeout:
-- The system **does not crash**.
-- [`JevClient`](file:///C:/GithubProjects/Rag_Full_Version/src/guardrails/jev_client.py) automatically falls back to an offline token-overlap heuristic verification (`engine: "heuristic_fallback"`).
-- Queries continue to be served and validated seamlessly with zero external API dependencies.
+### 4.3 Graceful Tier 2 Bypass (Fail-Open on Outage / Zero Downtime)
+If the Jev model is down, unresponsive (e.g., HTTP error or timeout), or if `JEV_API_KEY` is not configured:
+- The system **does not crash** and **does not reject answers with a false positive**.
+- [`JevClient`](file:///C:/GithubProjects/Rag_Full_Version/src/guardrails/jev_client.py) and [`HallucinationDetector`](file:///C:/GithubProjects/Rag_Full_Version/src/guardrails/hallucination_detector.py) gracefully **bypass Tier 2** (`engine: "bypassed"`).
+- **Tier 1 (Citation Verification)** continues to strictly protect the pipeline by verifying that all cited indices and sources exist in the retrieved documents.
+- The incident and bypass reason are logged in the distributed trace telemetry for observability.
+
 
 ---
 

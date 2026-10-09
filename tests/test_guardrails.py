@@ -1,6 +1,7 @@
 """Unit and integration tests for guardrails, citation verification, and Jev entailment."""
 
 from unittest.mock import MagicMock, patch
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -85,25 +86,34 @@ def test_citation_verifier_no_citations(sample_retrieved_docs):
 
 
 # ---------------------------------------------------------
-# JevClient Tests
+# JevClient Tests (Bypass & Live API)
 # ---------------------------------------------------------
 
-def test_jev_client_heuristic_fallback(sample_retrieved_docs):
-    """Verify offline heuristic fallback when no API key is provided."""
+def test_jev_client_unconfigured_bypasses():
+    """Verify Tier 2 is bypassed when no Jev API key is configured."""
     client = JevClient(api_key=None)
-    context = sample_retrieved_docs[0]["chunk_text"]
+    res = client.check_entailment("Any claim", "Any context")
 
-    # Grounded claim
-    claim_grounded = "Photosynthesis converts light energy into chemical energy."
-    res_grounded = client.check_entailment(claim_grounded, context)
-    assert res_grounded["is_supported"] is True
-    assert res_grounded["engine"] == "heuristic_fallback"
+    assert res["is_supported"] is True
+    assert res["bypassed"] is True
+    assert res["engine"] == "bypassed"
+    assert res["decision"] == "bypassed"
 
-    # Hallucinated / unrelated claim
-    claim_unrelated = "Quantum computers operate at absolute zero using superconducting qubits."
-    res_unrelated = client.check_entailment(claim_unrelated, context)
-    assert res_unrelated["is_supported"] is False
-    assert res_unrelated["decision"] == "unsupported"
+
+@patch("src.guardrails.jev_client.httpx.Client")
+def test_jev_client_unresponsive_bypasses(mock_httpx_cls):
+    """Verify Tier 2 is bypassed when Jev service is unresponsive or times out."""
+    mock_client_instance = MagicMock()
+    mock_client_instance.post.side_effect = httpx.ConnectTimeout("Connection timed out")
+    mock_httpx_cls.return_value.__enter__.return_value = mock_client_instance
+
+    client = JevClient(api_key="mock_key")
+    res = client.check_entailment("Any claim", "Any context")
+
+    assert res["is_supported"] is True
+    assert res["bypassed"] is True
+    assert res["engine"] == "bypassed"
+    assert "timeout" in res["reason"].lower()
 
 
 @patch("src.guardrails.jev_client.httpx.Client")
@@ -131,6 +141,7 @@ def test_jev_client_mock_api_success(mock_httpx_cls, sample_retrieved_docs):
     assert res["is_supported"] is True
     assert res["confidence"] == 0.96
     assert res["engine"] == "jev"
+    assert res["bypassed"] is False
 
 
 # ---------------------------------------------------------
@@ -139,23 +150,63 @@ def test_jev_client_mock_api_success(mock_httpx_cls, sample_retrieved_docs):
 
 def test_hallucination_detector_grounded_answer(sample_retrieved_docs):
     """Verify that a grounded response passes hallucination verification."""
-    detector = HallucinationDetector()
+    mock_jev = MagicMock()
+    mock_jev.check_entailment.return_value = {
+        "is_supported": True,
+        "confidence": 0.95,
+        "decision": "supported",
+        "engine": "jev",
+        "bypassed": False,
+    }
+
+    detector = HallucinationDetector(jev_client=mock_jev)
     answer = "Photosynthesis is the biological process converting light to chemical energy."
     result = detector.verify_grounding(answer, sample_retrieved_docs)
 
     assert result.is_grounded is True
-    assert result.grounding_score >= 0.8
+    assert result.grounding_score == 1.0
     assert len(result.unsupported_claims) == 0
 
 
 def test_hallucination_detector_hallucinated_answer(sample_retrieved_docs):
     """Verify that an answer with fabricated facts is flagged."""
-    detector = HallucinationDetector()
+    mock_jev = MagicMock()
+    mock_jev.check_entailment.return_value = {
+        "is_supported": False,
+        "confidence": 0.12,
+        "decision": "unsupported",
+        "engine": "jev",
+        "bypassed": False,
+    }
+
+    detector = HallucinationDetector(jev_client=mock_jev)
     answer = "Photosynthesis produces titanium alloy structures inside Martian volcanic craters."
     result = detector.verify_grounding(answer, sample_retrieved_docs)
 
     assert result.is_grounded is False
     assert len(result.unsupported_claims) > 0
+
+
+def test_hallucination_detector_jev_unresponsive_bypasses(sample_retrieved_docs):
+    """Verify that when Jev is unresponsive, Tier 2 is bypassed rather than failing."""
+    mock_jev = MagicMock()
+    mock_jev.check_entailment.return_value = {
+        "is_supported": True,
+        "confidence": 1.0,
+        "decision": "bypassed",
+        "engine": "bypassed",
+        "bypassed": True,
+        "reason": "Connection timeout",
+    }
+
+    detector = HallucinationDetector(jev_client=mock_jev)
+    answer = "Photosynthesis occurs in plants and leaves."
+    result = detector.verify_grounding(answer, sample_retrieved_docs)
+
+    assert result.is_grounded is True
+    assert result.grounding_score == 1.0
+    assert result.engine == "bypassed"
+    assert "bypassed" in result.details.lower()
 
 
 # ---------------------------------------------------------
@@ -165,7 +216,15 @@ def test_hallucination_detector_hallucinated_answer(sample_retrieved_docs):
 def test_fallback_handler_approval(sample_retrieved_docs):
     """Verify that compliant outputs are approved."""
     verifier = CitationVerifier()
-    detector = HallucinationDetector()
+    mock_jev = MagicMock()
+    mock_jev.check_entailment.return_value = {
+        "is_supported": True,
+        "confidence": 0.95,
+        "decision": "supported",
+        "engine": "jev",
+        "bypassed": False,
+    }
+    detector = HallucinationDetector(jev_client=mock_jev)
     handler = FallbackHandler()
 
     answer = "Photosynthesis converts light into chemical energy [1]."
@@ -181,7 +240,15 @@ def test_fallback_handler_approval(sample_retrieved_docs):
 def test_fallback_handler_trigger_on_hallucination(sample_retrieved_docs):
     """Verify that detected hallucinations trigger safe fallback response."""
     verifier = CitationVerifier()
-    detector = HallucinationDetector()
+    mock_jev = MagicMock()
+    mock_jev.check_entailment.return_value = {
+        "is_supported": False,
+        "confidence": 0.1,
+        "decision": "unsupported",
+        "engine": "jev",
+        "bypassed": False,
+    }
+    detector = HallucinationDetector(jev_client=mock_jev)
     handler = FallbackHandler(strict_mode=True)
 
     answer = "Photosynthesis constructs titanium spaceships on Jupiter [1]."
