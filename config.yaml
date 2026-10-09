@@ -47,7 +47,7 @@ guardrails:
   jev:
     model: "jev-1.13.0"
     api_base: "https://api.typesafe.ai/v1"
-    confidence_threshold: 0.85
+    confidence_threshold: 0.70
     timeout_seconds: 3.0
   fallback:
     strict_mode: true
