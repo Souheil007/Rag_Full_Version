@@ -106,18 +106,20 @@ class LLMClient:
             except Exception as exc:
                 logger.error(f"Failed to initialize Mistral client: {exc}")
 
-    def _generate_gemini(self, prompt: str, system_prompt: str | None = None) -> str:
+    def _generate_gemini(self, prompt: str, system_prompt: str | None = None, model_name: str | None = None) -> str:
         """Generate response via Gemini API with model fallback support.
 
         Args:
             prompt: Formatted user prompt.
             system_prompt: Optional system instruction.
+            model_name: Optional override model identifier.
 
         Returns:
             Generated response string.
         """
+        target_model = model_name or self.model_name
         candidate_models = [
-            self.model_name,
+            target_model,
             "gemini-2.0-flash",
             "gemini-2.5-flash",
             "gemini-1.5-flash-latest",
@@ -167,18 +169,20 @@ class LLMClient:
         logger.error(f"All Gemini model candidates failed. Last error: {last_error}")
         return f"[Error generating response with Gemini: {last_error}]"
 
-    def _generate_mistral(self, prompt: str, system_prompt: str | None = None) -> str:
+    def _generate_mistral(self, prompt: str, system_prompt: str | None = None, model_name: str | None = None) -> str:
         """Generate response via Mistral API with model fallback support.
 
         Args:
             prompt: Formatted user prompt.
             system_prompt: Optional system instruction.
+            model_name: Optional override model identifier.
 
         Returns:
             Generated response string.
         """
+        target_model = model_name or self.model_name
         candidate_models = [
-            self.model_name,
+            target_model,
             "open-mistral-7b",
             "mistral-tiny",
             "mistral-small-latest",
@@ -218,23 +222,30 @@ class LLMClient:
         logger.error(f"All Mistral candidates failed. Last error: {last_error}")
         return f"[Error generating response with Mistral: {last_error}]"
 
-    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model_name: str | None = None,
+    ) -> str:
         """Send prompt to configured LLM and return generated text.
 
         Args:
             prompt: User-facing prompt including retrieved context.
             system_prompt: Optional system instructions.
+            model_name: Optional override model identifier.
 
         Returns:
             Generated response string.
         """
         self._init_client()
+        target_model = model_name or self.model_name
 
         if self.provider == "gemini" and self._client is not None:
-            return self._generate_gemini(prompt, system_prompt)
+            return self._generate_gemini(prompt, system_prompt, model_name=target_model)
 
         if self.provider in ("mistral", "mistralai") and self._client is not None:
-            return self._generate_mistral(prompt, system_prompt)
+            return self._generate_mistral(prompt, system_prompt, model_name=target_model)
 
         if self.provider == "openai" and self._client is not None:
             try:
@@ -244,7 +255,7 @@ class LLMClient:
                 messages.append({"role": "user", "content": prompt})
 
                 response = self._client.chat.completions.create(
-                    model=self.model_name,
+                    model=target_model,
                     messages=messages,
                     temperature=self.temperature,
                     max_tokens=self.max_output_tokens,
@@ -255,5 +266,5 @@ class LLMClient:
                 return f"[Error generating response with OpenAI: {exc}]"
 
         # Mock / Fallback output for testing without API keys
-        return f"[Mock response for query based on model {self.model_name}]"
+        return f"[Mock response for query based on model {target_model}]"
 

@@ -58,3 +58,16 @@ api:
   port: 8000
   reload: true
 
+optimization:
+  semantic_cache:
+    enabled: true
+    similarity_threshold: 0.95
+    max_entries: 1000
+    ttl_seconds: 86400
+    cache_only_verified: true
+
+  query_router:
+    enabled: false
+    default_model: "open-mistral-7b"
+    fast_model: "open-mistral-7b"
+    reasoning_model: "mistral-large-latest"

@@ -15,6 +15,9 @@ from src.observability.metrics_collector import MetricsCollector
 from src.observability.sentry_monitor import SentryMonitor
 from src.observability.span_exporter import SpanExporter
 from src.observability.tracer import Tracer
+from src.optimization.profiler import PipelineProfiler
+from src.optimization.query_router import QueryRouter
+from src.optimization.semantic_cache import SemanticCache
 from src.prompts.prompt_templates import (
     DEFAULT_RAG_SYSTEM_PROMPT,
     format_rag_prompt,
@@ -56,6 +59,7 @@ class QueryResponse(BaseModel):
     guardrail_status: str | None = Field(default="approved", description="Guardrail outcome: 'approved' or 'fallback_triggered'.")
     citation_score: float | None = Field(default=1.0, description="Verified citations score (0.0 to 1.0).")
     grounding_score: float | None = Field(default=1.0, description="Entailment grounding score from Jev (0.0 to 1.0).")
+    profiling: dict[str, Any] | None = Field(default=None, description="Granular latency and cost profiling breakdown.")
 
 
 
@@ -154,6 +158,26 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         strict_mode=fallback_cfg.get("strict_mode", True),
     )
 
+    # Optimization Components (Plan 4)
+    opt_cfg = cfg.get("optimization", {})
+    cache_cfg = opt_cfg.get("semantic_cache", {})
+    router_cfg = opt_cfg.get("query_router", {})
+
+    semantic_cache = SemanticCache(
+        enabled=cache_cfg.get("enabled", True),
+        similarity_threshold=cache_cfg.get("similarity_threshold", 0.95),
+        max_entries=cache_cfg.get("max_entries", 1000),
+        ttl_seconds=cache_cfg.get("ttl_seconds", 86400),
+        cache_only_verified=cache_cfg.get("cache_only_verified", True),
+    )
+    query_router = QueryRouter(
+        enabled=router_cfg.get("enabled", False),
+        default_model=router_cfg.get("default_model", model_name),
+        fast_model=router_cfg.get("fast_model", model_name),
+        reasoning_model=router_cfg.get("reasoning_model", "mistral-large-latest"),
+    )
+    profiler = PipelineProfiler(metrics_collector=metrics)
+
     @app.get("/health")
     def health_check() -> dict[str, str]:
         """Health check endpoint to verify server status."""
@@ -162,7 +186,9 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     @app.get("/metrics")
     def get_metrics() -> dict[str, Any]:
         """Retrieve operational latency percentiles, error rates, and token costs."""
-        return metrics.get_metrics_snapshot()
+        snapshot = metrics.get_metrics_snapshot()
+        snapshot["cache"] = semantic_cache.stats()
+        return snapshot
 
     @app.get("/sentry-debug")
     def trigger_sentry_error() -> None:
@@ -196,7 +222,66 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @app.post("/query", response_model=QueryResponse)
     def query_rag(req: QueryRequest) -> QueryResponse:
-        """Execute RAG query wrapped in distributed tracing and metrics tracking."""
+        """Execute RAG query wrapped in distributed tracing, caching, and metrics tracking."""
+        # Check semantic cache if enabled
+        query_embedding: list[float] = []
+        if semantic_cache.enabled:
+            query_embedding = embedder.embed_text(req.query)
+            cached_result = semantic_cache.lookup(req.query, query_embedding)
+            if cached_result is not None:
+                with tracer.trace("rag_query_pipeline") as root_trace:
+                    root_trace.root_span.set_input({
+                        "query": req.query,
+                        "search_type": req.search_type,
+                        "top_k": req.top_k,
+                        "cache_hit": True,
+                    })
+                    with root_trace.span("semantic_cache_lookup") as s_c:
+                        s_c.set_output({
+                            "status": "hit",
+                            "similarity": cached_result.get("similarity", 1.0),
+                            "cached_query": cached_result.get("cached_query", req.query),
+                        })
+                    root_trace.root_span.set_output({
+                        "answer": cached_result["answer"],
+                        "sources_count": len(cached_result["sources"]),
+                    })
+                summary = root_trace.get_summary()
+                exporter.export(summary)
+
+                profiling_info = profiler.profile_trace(
+                    trace_summary=summary,
+                    model_name="semantic_cache",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cache_hit=True,
+                )
+                metrics.record_query(
+                    duration_ms=summary["total_duration_ms"],
+                    is_error=False,
+                    cache_hit=True,
+                    input_tokens=0,
+                    output_tokens=0,
+                    model_name="semantic_cache",
+                )
+                return QueryResponse(
+                    query=req.query,
+                    search_type=req.search_type,
+                    answer=cached_result["answer"],
+                    sources=cached_result["sources"],
+                    trace_id=summary["trace_id"],
+                    latency_ms=summary["total_duration_ms"],
+                    estimated_cost_usd=0.0,
+                    guardrail_status="approved",
+                    citation_score=1.0,
+                    grounding_score=1.0,
+                    profiling=profiling_info,
+                )
+
+        # Cache miss: Route query
+        route_decision = query_router.route(req.query)
+        active_model = route_decision["model"]
+
         with tracer.trace("rag_query_pipeline") as root_trace:
             root_trace.root_span.set_input({"query": req.query, "search_type": req.search_type, "top_k": req.top_k})
 
@@ -224,9 +309,13 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
             # 3. LLM Generation Span
             with root_trace.span("llm_generation") as s_llm:
-                s_llm.set_input({"prompt": prompt, "model": model_name})
-                generated_answer = llm_client.generate(prompt, system_prompt=DEFAULT_RAG_SYSTEM_PROMPT)
-                s_llm.set_attribute("model", model_name)
+                s_llm.set_input({"prompt": prompt, "model": active_model})
+                generated_answer = llm_client.generate(
+                    prompt,
+                    system_prompt=DEFAULT_RAG_SYSTEM_PROMPT,
+                    model_name=active_model,
+                )
+                s_llm.set_attribute("model", active_model)
                 s_llm.set_output({"answer": generated_answer})
 
             # 4. Guardrails Verification Span
@@ -261,15 +350,41 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         # Estimate tokens (approx 4 chars per token)
         input_tokens = len(prompt) // 4
         output_tokens = len(final_answer) // 4
-        cost = metrics.estimate_cost(model_name, input_tokens, output_tokens)
+        cost = metrics.estimate_cost(active_model, input_tokens, output_tokens)
+
+        # Store in cache if verified and approved
+        if semantic_cache.enabled:
+            is_verified = (
+                guardrail_decision.approved
+                and guardrail_decision.action_taken != "fallback_triggered"
+            ) if guardrail_decision else True
+            if not query_embedding:
+                query_embedding = embedder.embed_text(req.query)
+            semantic_cache.store(
+                query=req.query,
+                query_embedding=query_embedding,
+                answer=final_answer,
+                sources=retrieved_docs,
+                is_verified=is_verified,
+                disallowed_phrases=[fallback_cfg.get("fallback_message", DEFAULT_FALLBACK_MESSAGE)],
+            )
 
         # Record operational metrics
         metrics.record_query(
             duration_ms=summary["total_duration_ms"],
             is_error=False,
+            cache_hit=False,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            model_name=model_name,
+            model_name=active_model,
+        )
+
+        profiling_info = profiler.profile_trace(
+            trace_summary=summary,
+            model_name=active_model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_hit=False,
         )
 
         return QueryResponse(
@@ -283,7 +398,9 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             guardrail_status=guardrail_decision.action_taken if guardrail_decision else "disabled",
             citation_score=guardrail_decision.citation_score if guardrail_decision else 1.0,
             grounding_score=guardrail_decision.grounding_score if guardrail_decision else 1.0,
+            profiling=profiling_info,
         )
+
 
 
     @app.post("/evaluate", response_model=dict[str, Any])
