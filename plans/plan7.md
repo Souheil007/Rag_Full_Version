@@ -3,7 +3,7 @@
 ## 🎯 Objective
 Design a production-grade ingestion and chunking architecture capable of handling **complex, data-heavy, structured documents** (financial filings, scientific papers, technical manuals, architectural specifications, and legal contracts). 
 
-This plan synthesizes real-world production insights from industry practitioners: **layout-aware native extraction, Document Block Tree representation, multi-page table stitching with fill-down header normalization, syntactic code parsing, narrative context enrichment ("story generation"), retrieval-time hit expansion, and targeted regression evaluation**.
+This plan synthesizes real-world production insights into an operationally resilient, cost-effective pipeline: **layout-aware native extraction, Document Block Tree representation, multi-page table stitching (with headerless fallbacks and fill-down normalization), dual-format table serialization for embeddings, runtime hit deduplication with token budgeting, and a 25-question empirical evaluation suite**.
 
 ---
 
@@ -16,28 +16,31 @@ flowchart TD
         N1 --> N3["Column Cross-Reading (reads across columns horizontally)"]
         N4["Sliding Token Window (e.g., 500 tokens)"] --> N5["Severs tables mid-row / loses table headers"]
         N4 --> N6["Splits code syntax & mathematical equations"]
-        N4 --> N7["Semantic Mismatch: Dense table cell vs narrative query"]
+        N4 --> N7["Embedding Mismatch: Markdown pipe grids score low in vector models"]
+        N4 --> N8["Context Explosion: Uncontrolled expansion floods LLM prompt"]
     end
 
-    subgraph Structured ["Block-Aware & Layout Ingestion (Production Solution)"]
-        S1["Native PDF Streams + Layout Model"] --> S2["Zero character hallucination on digital text"]
+    subgraph Structured ["Production Solution: Block-Aware Engine"]
+        S1["Native Stream + Layout Model"] --> S2["Zero character hallucination on digital text"]
         S1 --> S3["Bounding box & reading-order resolution"]
         S4["Document Object Model / AST Tree"] --> S5["Block-Type Chunking (Atomic / Row-Grouped)"]
-        S4 --> S6["Fill-Down Header Normalization & Multi-Page Stitching"]
-        S4 --> S7["Story Generation / Context Breadcrumbs & Hit Expansion"]
+        S4 --> S6["Fill-Down Normalizer & Headerless Stitching"]
+        S4 --> S7["Dual Table Serialization (KV for Embed, MD for LLM)"]
+        S4 --> S8["Deduplicated Hit Expansion with Token Budgets"]
     end
 ```
 
-### Key Failure Modes
-1. **Flattened Hierarchy & Lost Parentage**: A paragraph stating *"The liability limit is $50,000"* loses all meaning if separated from its parent heading *"Section 4.2: Exclusions for Tier 2 Vendors"*.
-2. **Table Mutilation & Empty Merged Cells**: Flat markdown or split windows orphan data cells from their headers. Merged headers in multi-row columns yield empty strings in child rows unless explicitly forward-filled.
-3. **VLM Character Hallucination**: Pure vision models rasterizing entire pages frequently misread numbers, formulas, and symbols (turning `6` into `5` or dropping minus signs), which is disastrous for legal, medical, or financial data.
-4. **Semantic Query Mismatch**: User queries are narrative (*"How does company X handle foreign currency risks?"*), whereas data in documents is dense tabular or schematic data (*"EUR/USD | 1.08 | Delta 0.04"*). Without a narrative bridge ("story generation"), semantic retrieval misses the target.
-5. **Geometry vs. Semantic Traps**: Visual proximity alone fails when text wraps around sidebars, figures, or footers.
+### Key Failure Modes Addressed
+1. **Flattened Hierarchy & Lost Parentage**: Detaching facts from enclosing section headers strips operational context.
+2. **Table Mutilation & Empty Merged Cells**: Multi-row headers produce empty strings in sub-cells unless explicitly filled down.
+3. **Markdown Pipe Embedding Mismatch**: Embedding models trained on prose poorly match raw ASCII pipe grids (`| --- | --- |`).
+4. **VLM Character Hallucination**: End-to-end vision models misread numbers/minus signs on data-heavy PDFs.
+5. **Runtime Context Explosion**: Expanding hits without deduplication floods the prompt when multiple rows from the same table match.
+6. **Headerless Page Spills**: Over 40% of continued tables in real-world PDFs omit headers on page 2.
 
 ---
 
-## 🏗️ The 6-Layer Architecture
+## 🏗️ The Production Architecture
 
 ```mermaid
 flowchart LR
@@ -51,27 +54,28 @@ flowchart LR
         DOM --> SIG["Signals: TOC, Headers, Numbering"]
     end
 
-    subgraph L3 ["3. Specialized Parsers"]
-        DOM --> TAB["Table Grid + Fill-Down Normalizer"]
-        DOM --> CODE["Code/Schema AST Parser"]
-        DOM --> MATH["Equation Block Isolator"]
+    subgraph L3 ["3. Table & AST Normalizers"]
+        DOM --> TAB["Table Parser: Fill-Down + Headerless Stitcher"]
+        DOM --> CODE["Code / Schema AST Parser"]
+        DOM --> MATH["Equation Isolator"]
     end
 
-    subgraph L4 ["4. Block-Type Chunking"]
+    subgraph L4 ["4. Block-Type Chunking & Dual Serializer"]
         TAB --> BTC["Block Chunker (Atomic / Row-Group)"]
         CODE --> BTC
         MATH --> BTC
-        BTC --> BC["Breadcrumb Path & Prose Link Injection"]
+        BTC --> DUAL["Dual Serializer:\n• KV Sentences for Dense Vector\n• Markdown for LLM Context"]
     end
 
-    subgraph L5 ["5. Story Generation"]
-        BC --> SG["Narrative Summarization & Context Bridge"]
+    subgraph L5 ["5. Deterministic Context Enrichment"]
+        DUAL --> DET["Deterministic Breadcrumbs (Doc > Sec > Caption)"]
+        DET --> LAZY["Selective Lazy LLM Fallback (Only orphan tables)"]
     end
 
-    subgraph L6 ["6. Retrieval & Expansion"]
-        SG --> VEC["Hybrid Index"]
-        VEC --> EXP["Hit Expander (Parent / Prose Context)"]
-        EXP --> RR["Cross-Encoder Reranker"]
+    subgraph L6 ["6. Retrieval, Collapse & Rerank"]
+        LAZY --> RET["Hybrid Search (Dense KV + Custom BM25)"]
+        RET --> COL["Hit Collapser & Token Budget Manager"]
+        COL --> RR["Cross-Encoder Reranker"]
     end
 ```
 
@@ -84,7 +88,7 @@ flowchart LR
 * **Extraction Quality Score ($Q_{score} \in [0.0, 1.0]$)**:
   Compute an ingestion confidence score per document before indexing:
   $$Q_{score} = w_1 \cdot \text{NativeRatio} + w_2 \cdot \text{FontConsistency} + w_3 \cdot \text{CharDensity} - w_4 \cdot \text{OCRConfidenceLoss}$$
-  - Documents scoring $< 0.65$ (e.g. poor scans, "napkin scratch") trigger OCR fallback or user warning, rather than silently polluting vector databases.
+  - If $Q_{score} < 0.65$ (e.g., degraded scans), route to specialized layout-aware table OCR (Surya/PaddleOCR Table) or return an actionable ingestion warning.
 
 ---
 
@@ -116,7 +120,6 @@ class DocumentNode(BaseModel):
 ```
 
 #### Disambiguating Visual vs. Semantic Boundaries
-Geometry alone is unreliable. The tree builder settles region conflicts by cross-referencing:
 - **Section Numbering**: Regex patterns (`1.`, `1.2`, `IV.A`) override physical gaps.
 - **Table of Contents (TOC) Matching**: Extracted headings are validated against the document's native TOC outline.
 - **Running Headers & Footers**: Pruned based on frequency/position across pages to prevent text fracture.
@@ -124,25 +127,24 @@ Geometry alone is unreliable. The tree builder settles region conflicts by cross
 
 ---
 
-### Layer 3: Specialized Table & Code Parsers
+### Layer 3: Specialized Table Parsers (Fill-Down & Headerless Stitching)
 
-#### A. Table Handling & The "Fill-Down" Normalizer
-1. **The Multi-Row Header Fill-Down Pass**:
-   - In multi-level headers (`colspan` / `rowspan`), underlying sub-cells often evaluate to `""` or `None`.
-   - Implement an explicit **forward-fill / fill-down normalizer** that propagates parent headers downward and rightward.
-   - Example: A top header `"2025 Financials"` spanning `"Q1"`, `"Q2"` produces compound column names: `["2025 Financials > Q1", "2025 Financials > Q2"]`.
-2. **Multi-Page Table Stitching**:
-   - Compare bottom boundary geometry of page $N$ with top boundary geometry of page $N+1$.
-   - Compute column header signature similarity across page breaks.
-   - Stitch rows into a single continuous entity before chunking.
+#### A. The Multi-Row Header Fill-Down Pass
+- In multi-level headers (`colspan` / `rowspan`), underlying sub-cells often evaluate to `""` or `None`.
+- The **Forward-Fill Normalizer** propagates parent headers downward and rightward.
+- Example: Top header `"2025 Financials"` spanning `"Q1"`, `"Q2"` produces compound column names:  
+  `["2025 Financials > Q1", "2025 Financials > Q2"]`.
 
-#### B. Code & Schema AST Parsing
-- For documents containing code, YAML, SQL, or JSON schemas, arbitrary token splits cause syntax breakage.
-- Use language-aware AST chunking (e.g. `tree-sitter` or Python `ast`): split at class/function/block boundaries.
+#### B. Multi-Page Table Stitching with Headerless Fallback
+1. **Rule A (Header Signature Matching)**: If page $N+1$ begins with the same column headers as page $N$, stitch rows continuously.
+2. **Rule B (Headerless Spillover Fallback)**: If page $N$ table cuts off near the bottom margin ($y_1 > 0.85$) and page $N+1$ begins at the top margin ($y_0 < 0.15$) with:
+   - Identical column counts, and
+   - Compatible data-type signatures (e.g. Col 1 is string, Col 2-4 are floats),
+   treat it as an immediate continuation and adopt the header schema from page $N$.
 
 ---
 
-### Layer 4: Block-Type Chunking Engine
+### Layer 4: Block-Type Chunking & Dual Serialization
 
 Stop sliding character windows across the document. Chunk strictly according to **BlockType**:
 
@@ -151,7 +153,7 @@ flowchart TD
     Node["Document Block"] --> Check{"Block Type?"}
     
     Check -->|Paragraph| PChunk["Split by sentence/paragraph without crossing section"]
-    Check -->|Small Table| TSmall["Keep 100% Atomic (Caption + Path + Full Markdown)"]
+    Check -->|Small Table| TSmall["Keep 100% Atomic (Caption + Path + Full Table)"]
     Check -->|Large Table| TLarge["Row-Group Chunking: Replicate Headers + Units + Path in EVERY sub-chunk"]
     Check -->|Code/Schema| CodeAST["Syntactic AST Splitting (Function/Class Boundaries)"]
 ```
@@ -160,55 +162,64 @@ flowchart TD
    - Kept strictly **atomic**. Never split.
 2. **Large Tables (> 30 rows)**:
    - Chunked by **row or row-group** (e.g., 10–15 rows).
-   - **Schema Replication**: Every sub-chunk must prepend:
+   - **Schema Replication**: Every sub-chunk prepends:
      - Document ID & Section path (`[Doc > Section 4.1]`)
      - Table title / caption
      - Full normalized column headers + measurement units
      - Row slice range (e.g., `[Rows 30-45]`)
-3. **Bi-directional Prose Linking**:
-   - When a table is detected, link its `preceding_prose_id` to the paragraph immediately introducing it.
+
+#### 🔑 Dual Serialization Strategy for Tables
+Dense bi-encoders score poorly on ASCII pipe tables (`| --- | --- |`). We generate **two distinct representations per table chunk**:
+
+1. **Dense Vector Search Representation (Key-Value Linearization)**:
+   ```text
+   Document: 2025_Annual_Report.pdf > Section 4.1: Hedging Positions > Table 3: FX Options
+   Row 5: Currency Pair: EUR/USD; Contract Type: Put; Strike: 1.08; Notional: $50M; Delta: 0.04
+   Row 6: Currency Pair: GBP/USD; Contract Type: Call; Strike: 1.25; Notional: $30M; Delta: 0.12
+   ```
+2. **LLM Generation Payload**:
+   Pristine Markdown pipe table or HTML grid for clean LLM reasoning.
+3. **Punctuation-Preserving Sparse Tokenizer (BM25)**:
+   Preserve financial/scientific symbols (`$`, `%`, `<`, `>`, `-`, `/`) during BM25 indexing so numerical cell queries match.
 
 ---
 
-### Layer 5: Story Generation & Multilayered Summarization
-Solves the **semantic mismatch** between natural-language user queries and dense technical artifacts:
+### Layer 5: Cost-Effective Context Enrichment (Deterministic First)
+
+To avoid high latency and API bill shock, do not blindly call LLMs for every table:
+
+1. **Level 1 (Deterministic & Free - 90% of Cases)**:
+   - Prepend full Section Lineage + Document Title + Table Title + Preceding Introductory Prose (`preceding_prose_id`).
+   - This provides sufficient narrative context for semantic search without incurring LLM API costs.
+2. **Level 2 (Lazy / Selective LLM Fallback - 10% of Cases)**:
+   - Trigger an LLM "Story / Takeaway Generation" call **only** for "orphan" tables (tables that lack a title, have no preceding prose, and contain dense numerical acronyms).
+
+---
+
+### Layer 6: Retrieval-Time Hit Collapser & Token Budget Manager
 
 ```mermaid
 flowchart TD
-    RawTable["Dense Raw Table: 'EUR/USD | 1.08 | Delta 0.04'"]
-    
-    subgraph StoryGen ["Story Generation Bridge"]
-        L1Sum["Document Context: Q3 Financial Hedging Strategy"]
-        L2Sum["Section Summary: Foreign Exchange Hedging Positions"]
-        Narrative["Generated Table Narrative: 'Table 4.2 outlines foreign exchange hedges showing a 4% delta exposure against EUR/USD volatility.'"]
-    end
-
-    EnrichedChunk["Enriched Chunk:\n• Search Payload: Breadcrumbs + Narrative Summary\n• Retrieval Context: Raw Table + Exact Grid Data"]
-    
-    RawTable --> StoryGen
-    StoryGen --> EnrichedChunk
+    Hits["Top-K Candidate Hits (Rows, Paragraphs, Tables)"] --> Dedup["1. Sibling Collapse & Deduplication"]
+    Dedup --> Budget{"2. Check Token Budget (e.g., max 2,500 tokens)"}
+    Budget -->|Under Budget & Small Table| FullT["Expand to Full Atomic Table + Intro Prose"]
+    Budget -->|Over Budget or Large Table| SlicedT["Expand only to ±2 Neighboring Rows + Replicated Header"]
+    FullT & SlicedT --> Rerank["3. Cross-Encoder Reranker"]
+    Rerank --> Prompt["Final Context Prompt for LLM"]
 ```
 
-- **Dual-Representation Indexing**:
-  - Embed the **narrative summary + breadcrumbs** for high semantic similarity during vector retrieval.
-  - Deliver the **exact structured table / pristine code block** to the LLM generation prompt for zero-error synthesis.
+1. **Sibling Deduplication**:
+   - If multiple retrieved chunks belong to the **same table ID**, collapse them into a single consolidated table reference. Never inject the same table multiple times into the prompt.
+2. **Dynamic Context Budgeting**:
+   - Set a maximum table token budget (e.g., 2,500 tokens).
+   - If a table is small ($\le 1,000$ tokens), expand to the **full atomic table + introductory prose**.
+   - If a table is large, expand only to the **retrieved rows $\pm 2$ neighboring rows + schema header**.
+3. **Cross-Encoder Reranker**:
+   - Scores the collapsed, expanded context against the user query before passing to the generator.
 
 ---
 
-### Layer 6: Retrieval-Time Hit Expansion & Reranker Pairing
-
-1. **Context Expansion (Small-to-Big Retrieval)**:
-   - When a table row-chunk hits during search:
-     - Automatically expand the context to pull the **table caption/header** and the **introductory preceding paragraph** (`preceding_prose_id`).
-     - If the table is small and only one row matched, pull the **full atomic table**.
-   - When a paragraph chunk hits, expand to inspect immediately adjacent referenced tables.
-2. **Cross-Encoder / Reranker Pairing**:
-   - Hybrid search retrieves top-30 candidates (Dense summary + Sparse BM25 on exact cell values).
-   - Cross-encoder reranks expanded candidates based on query-to-breadcrumb and query-to-fact alignment.
-
----
-
-### 🧪 Evaluation: The 25-Question Targeted Benchmark
+### 🧪 Evaluation: The 25-Question Empirical Benchmark
 
 Before overbuilding, validate chunking performance on a frozen 25-question evaluation set comparing **naive character chunking** against **block/table-aware chunking**:
 
@@ -219,19 +230,20 @@ Before overbuilding, validate chunking performance on a frozen 25-question evalu
 | **Narrative / Broad Synthesis**| 6 | Broad section-level queries that summarize prose | *"What are the primary geopolitical risks outlined?"* |
 | **Negative Controls** | 4 | Questions that should NOT match the table | *"What are the exclusions for unlisted maritime vehicles?"* |
 
-**Metric**: Measure **Retrieved Source Quality (Precision@K / NDCG@K)** on ground-truth blocks, not just final generated response accuracy.
+**Evaluation Metric**: Measure **Retrieved Source Quality (NDCG@5 / Precision@5)** on ground-truth blocks, not just final answer accuracy.
 
 ---
 
 ## 🧪 Regression Testing: The "Ugly Table" Fixture
 
 1. **The Frozen Fixture (`tests/fixtures/ugly_multipage_table.pdf`)**:
-   - A multi-page PDF containing merged cells (`rowspan=3`, `colspan=2`), rotated text, multi-line headers, and a page-break mid-row.
+   - A multi-page PDF containing merged cells (`rowspan=3`, `colspan=2`), rotated text, multi-line headers, and page breaks mid-row without repeated headers.
 2. **Automated Invariant Assertions**:
    - `test_table_no_lost_cells()`: Cell count and column alignment match ground truth before and after multi-page stitching.
    - `test_fill_down_headers()`: Assert no empty column names in sub-rows; multi-tier headers correctly compounded.
-   - `test_reading_order_two_column()`: Multi-column layouts must never interleave paragraphs across columns.
-   - `test_table_prose_link()`: Assert `preceding_prose_id` points to the introductory paragraph.
+   - `test_headerless_continuation()`: Correctly stitches page 2 table rows when header is omitted on page 2.
+   - `test_dual_serialization()`: KV string generated for vector indexing; Markdown generated for prompt context.
+   - `test_hit_deduplication()`: Multiple row hits from same table collapse to a single instance without exceeding token budget.
 
 ---
 
@@ -240,8 +252,8 @@ Before overbuilding, validate chunking performance on a frozen 25-question evalu
 | Phase | Milestone | Deliverables |
 | :--- | :--- | :--- |
 | **Phase 1: Document Block Tree & Quality Scorer** | Foundation | • `src/ingestion/doc_tree.py` (`BlockType`, `DocumentNode`, Tree builder)<br>• `src/ingestion/quality_scorer.py` ($Q_{score}$ calculation) |
-| **Phase 2: Layout Parser & Fill-Down Normalizer** | Extraction & Prep | • `src/ingestion/layout_parser.py` (Docling / layout stream)<br>• `src/chunking/table_parser.py` (Fill-down multi-row header normalizer, multi-page stitcher) |
+| **Phase 2: Table Normalizer & Dual Serializer** | Extraction & Format | • `src/chunking/table_parser.py` (Fill-down normalizer, headerless multi-page stitcher)<br>• `src/chunking/table_serializer.py` (KV string for embedding, Markdown for LLM) |
 | **Phase 3: Block-Type Chunking Engine** | Core Chunking | • `src/chunking/block_chunker.py` (Atomic small tables, row-group sub-chunks with duplicated schema headers, prose pointer) |
-| **Phase 4: Retrieval Hit Expander** | Retrieval | • `src/retrieval/hit_expander.py` (Small-to-big context expansion: table-to-prose, row-to-table) |
-| **Phase 5: Story Generator & Reranker Pairing** | Semantic Alignment | • `src/chunking/story_generator.py` (Dual-representation narrative summaries)<br>• Hybrid retrieval + cross-encoder reranking |
-| **Phase 6: Benchmark & Regression Suite** | Quality Assurance | • `tests/fixtures/ugly_multipage_table.pdf`<br>• `tests/test_block_chunking.py`<br>• 25-question retrieval evaluation script |
+| **Phase 4: Hit Collapser & Token Budgeter** | Runtime Retrieval | • `src/retrieval/hit_collapser.py` (Sibling deduplication, dynamic $\pm 2$ row expansion, token cap) |
+| **Phase 5: Benchmark & Regression Suite** | Quality Assurance | • `tests/fixtures/ugly_multipage_table.pdf`<br>• `tests/test_block_chunking.py`<br>• 25-question retrieval evaluation script |
+| **Phase 6: Lazy LLM Story Fallback (Optional)** | Enhancement | • `src/chunking/story_generator.py` (Only for orphan tables if benchmark indicates need) |
