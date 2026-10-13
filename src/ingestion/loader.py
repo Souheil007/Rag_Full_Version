@@ -49,16 +49,12 @@ class DocumentLoader:
         if ext in [".txt", ".md", ".csv"]:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-        elif ext == ".pdf":
-            try:
-                from pypdf import PdfReader
+        elif ext in [".pdf", ".docx"]:
+            from docling.document_converter import DocumentConverter
 
-                reader = PdfReader(str(path))
-                content = "\n".join([page.extract_text() or "" for page in reader.pages])
-            except ImportError:
-                logger.warning("pypdf not installed. Falling back to plain text read.")
-                with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
+            converter = DocumentConverter()
+            res = converter.convert(str(path.resolve()))
+            content = res.document.export_to_markdown()
         else:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
@@ -73,6 +69,22 @@ class DocumentLoader:
                 "size_bytes": path.stat().st_size,
             },
         }
+
+    def load_as_tree(self, file_path: str, quality_threshold: float = 0.65) -> tuple[Any, Any]:
+        """Load document file directly into a structured DocumentTree via Docling.
+
+        Args:
+            file_path: Path to the target document.
+            quality_threshold: Minimum acceptable extraction quality score.
+
+        Returns:
+            Tuple of (DocumentTree instance, QualityReport).
+        """
+        from src.ingestion.layout_parser import LayoutParser
+
+        parser = LayoutParser(quality_threshold=quality_threshold)
+        path = Path(file_path)
+        return parser.parse_file(str(path))
 
     def load_directory(self, dir_path: str) -> list[dict[str, Any]]:
         """Load all supported documents in a directory.

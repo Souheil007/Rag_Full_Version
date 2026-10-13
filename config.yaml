@@ -4,6 +4,8 @@ app:
   log_level: "INFO"
 
 ingestion:
+  use_docling: true
+  quality_threshold: 0.65
   supported_extensions:
     - ".pdf"
     - ".txt"

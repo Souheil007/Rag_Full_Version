@@ -207,3 +207,139 @@ def test_hit_collapser_deduplication_and_budgeting() -> None:
     assert "The financials below represent Q1 audited totals." in collapsed.formatted_prompt_context
     # Table should not be repeated twice
     assert collapsed.formatted_prompt_context.count("### Table: Consolidated Financials") == 1
+
+
+def test_layout_parser_heading_and_table_detection() -> None:
+    """Test LayoutParser detects headings, extracts tables, and prunes headers/footers."""
+    from src.ingestion.layout_parser import LayoutParser
+
+    sample_doc = """
+    Confidential - Internal Use Only
+    Page 1 of 12
+
+    # Executive Summary
+    This document outlines the operational roadmap for FY2026.
+
+    1.1 Infrastructure Upgrades
+    The database cluster will undergo sharding next month.
+    The primary nodes are detailed below:
+
+    | Node ID | Role | Memory |
+    |---|---|---|
+    | db-01 | Primary | 64GB |
+    | db-02 | Replica | 32GB |
+
+    ```bash
+    sudo systemctl restart cluster
+    ```
+
+    Page 1
+    """
+
+    parser = LayoutParser()
+    tree, report = parser.parse_document(sample_doc, doc_id="exec_summary", title="Executive Summary")
+
+    assert report.is_acceptable is True
+    # Pruned running headers/footers
+    walked = tree.walk()
+    contents = [n.content for n in walked]
+    assert not any("Confidential" in c for c in contents)
+    assert not any("Page 1 of 12" in c for c in contents)
+
+    # Found sections
+    sections = tree.get_nodes_by_type(BlockType.SECTION)
+    section_titles = [s.content for s in sections]
+    assert "Executive Summary" in section_titles
+    assert "1.1 Infrastructure Upgrades" in section_titles
+
+    # Found table and code
+    tables = tree.get_nodes_by_type(BlockType.TABLE)
+    assert len(tables) == 1
+    assert tables[0].table_metadata["headers"] == ["Node ID", "Role", "Memory"]
+    assert len(tables[0].table_metadata["rows"]) == 2
+
+    codes = tree.get_nodes_by_type(BlockType.CODE)
+    assert len(codes) == 1
+    assert "systemctl restart" in codes[0].content
+
+
+def test_document_loader_load_as_tree(tmp_path: pytest.TempPathFactory) -> None:
+    """Test DocumentLoader.load_as_tree integration."""
+    from src.ingestion.loader import DocumentLoader
+
+    test_file = tmp_path / "spec.md"
+    test_file.write_text(
+        "# System Architecture\nCore gateway routing specs.\n\n## Component List\n- Auth service\n- Proxy",
+        encoding="utf-8",
+    )
+
+    loader = DocumentLoader()
+    tree, report = loader.load_as_tree(str(test_file))
+
+    assert tree.doc_id == "spec"
+    assert report.is_acceptable is True
+    assert len(tree.root.children) >= 1
+
+
+def test_layout_parser_parse_file(tmp_path: pytest.TempPathFactory) -> None:
+    """Test LayoutParser.parse_file with native fallback."""
+    from src.ingestion.layout_parser import LayoutParser
+
+    test_file = tmp_path / "notes.txt"
+    test_file.write_text(
+        "Chapter 1: Deployment\nDeploying application pods to cloud nodes.\n\nSection 2: Networking\nTraffic routing setup.",
+        encoding="utf-8",
+    )
+
+    parser = LayoutParser()
+    tree, report = parser.parse_file(str(test_file))
+
+    assert tree.doc_id == "notes"
+    assert report.is_acceptable is True
+    assert tree.root.metadata["parser_engine"] in ("native", "docling", "docling_ast")
+    sections = tree.get_nodes_by_type(BlockType.SECTION)
+    assert len(sections) == 2
+
+
+def test_table_parser_from_docling_mock() -> None:
+    """Test TableParser.from_docling_table extracts cells, caption, and provenance from Docling AST."""
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    # Mock Docling TableItem
+    mock_item = MagicMock()
+    mock_item.caption_text.return_value = "Quarterly Revenue Breakdown"
+    
+    # Mock provenance
+    mock_prov = MagicMock()
+    mock_prov.page_no = 3
+    mock_prov.bbox.l = 0.1
+    mock_prov.bbox.t = 0.2
+    mock_prov.bbox.r = 0.9
+    mock_prov.bbox.b = 0.6
+    mock_item.prov = [mock_prov]
+
+    # Mock DataFrame export
+    mock_df = pd.DataFrame({
+        "Quarter": ["Q1", "Q2"],
+        "Revenue": ["$12M", "$15M"],
+        "Margin": ["22%", "25%"],
+    })
+    mock_item.export_to_dataframe.return_value = mock_df
+
+    norm_table = TableParser.from_docling_table(
+        table_item=mock_item,
+        doc=MagicMock(),
+        table_id="tbl_q_rev",
+    )
+
+    assert norm_table.table_id == "tbl_q_rev"
+    assert norm_table.caption == "Quarterly Revenue Breakdown"
+    assert norm_table.headers == ["Quarter", "Revenue", "Margin"]
+    assert len(norm_table.rows) == 2
+    assert norm_table.rows[0] == ["Q1", "$12M", "22%"]
+    assert norm_table.page_numbers == [3]
+    assert norm_table.metadata["origin"] == "docling"
+    assert norm_table.metadata["bbox"] == [0.1, 0.2, 0.9, 0.6]
+
+

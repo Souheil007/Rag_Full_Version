@@ -170,3 +170,76 @@ class TableParser:
             stitched.append(current_table)
 
         return stitched
+
+    @classmethod
+    def from_docling_table(
+        cls,
+        table_item: Any,
+        doc: Any = None,
+        table_id: str = "table",
+    ) -> NormalizedTable:
+        """Construct a NormalizedTable directly from a Docling TableItem AST node.
+
+        Preserves native row spans, column spans, bounding boxes, and caption without text guessing.
+
+        Args:
+            table_item: Docling TableItem instance.
+            doc: Optional parent DoclingDocument to resolve captions.
+            table_id: Unique identifier for the table.
+
+        Returns:
+            NormalizedTable instance with verified grid data.
+        """
+        caption = ""
+        if hasattr(table_item, "caption_text") and callable(table_item.caption_text) and doc:
+            try:
+                caption = table_item.caption_text(doc) or ""
+            except Exception:
+                caption = ""
+
+        # Extract page number and bbox from Docling provenance
+        pages: list[int] = []
+        bbox = [0.0, 0.0, 1.0, 1.0]
+        if hasattr(table_item, "prov") and table_item.prov:
+            for p in table_item.prov:
+                if hasattr(p, "page_no"):
+                    pages.append(int(p.page_no))
+                if hasattr(p, "bbox") and p.bbox:
+                    b = p.bbox
+                    bbox = [
+                        float(getattr(b, "l", 0.0)),
+                        float(getattr(b, "t", 0.0)),
+                        float(getattr(b, "r", 1.0)),
+                        float(getattr(b, "b", 1.0)),
+                    ]
+
+        pages = sorted(list(set(pages))) or [1]
+
+        # Extract headers and rows
+        headers: list[str] = []
+        rows: list[list[str]] = []
+
+        if hasattr(table_item, "export_to_dataframe") and callable(table_item.export_to_dataframe):
+            try:
+                df = table_item.export_to_dataframe()
+                headers = [str(c).strip() for c in df.columns]
+                rows = [[str(cell).strip() if cell is not None else "" for cell in row] for row in df.values]
+            except Exception as e:
+                logger.debug("Failed export_to_dataframe on Docling table: %s", e)
+
+        # Fallback to table_item.data.grid if export_to_dataframe was empty
+        if not rows and hasattr(table_item, "data") and hasattr(table_item.data, "grid"):
+            grid = table_item.data.grid
+            if grid:
+                headers = [getattr(cell, "text", "").strip() for cell in grid[0]]
+                for r in grid[1:]:
+                    rows.append([getattr(cell, "text", "").strip() for cell in r])
+
+        return NormalizedTable(
+            table_id=table_id,
+            caption=caption,
+            headers=headers,
+            rows=rows,
+            page_numbers=pages,
+            metadata={"bbox": bbox, "origin": "docling"},
+        )

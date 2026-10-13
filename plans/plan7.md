@@ -119,8 +119,19 @@ class DocumentNode(BaseModel):
     table_metadata: dict[str, Any] | None = None # table_id, row_range, column_names, units
 ```
 
-#### Disambiguating Visual vs. Semantic Boundaries
-- **Section Numbering**: Regex patterns (`1.`, `1.2`, `IV.A`) override physical gaps.
+#### Disambiguating Visual vs. Semantic Boundaries (Docling + Regex Architecture)
+
+> [!NOTE]
+> **Architectural Separation of Concerns:**
+> 1. **Docling Vision & Layout Models (Primary Authority)**:
+>    - Owns 100% of Table cell structures, row/col spans, bounding boxes, and reading-order flow.
+>    - Directly classifies visually distinct headers (`SectionHeaderItem`) based on font weight, size, and layout geometry.
+> 2. **Regex Semantic Validators (Secondary Signal Resolver)**:
+>    - **Does NOT replace or interfere with Docling**: Never alters Docling tables, code blocks, or visual headers.
+>    - Resolves the "small-font heading" trap: When legal or technical documents use numbered sub-clauses (e.g., `1.2.3 Limitation of Liability`) formatted in identical font size and weight as body text, Docling's vision model tags them as generic `TextItem` (body text).
+>    - The regex pattern strictly inspects these generic `TextItem`s for explicit numbering schemes (`1.1`, `Chapter 1`, `Article IV`) to elevate them into `BlockType.SECTION`, preserving hierarchical chunk lineage and breadcrumbs.
+
+- **Section Numbering**: Regex patterns (`1.`, `1.2`, `IV.A`) settle semantic boundaries when visual geometry is uniform.
 - **Table of Contents (TOC) Matching**: Extracted headings are validated against the document's native TOC outline.
 - **Running Headers & Footers**: Pruned based on frequency/position across pages to prevent text fracture.
 - **Repeated Table Header Rows**: Identified across page boundaries to trigger table continuation.
