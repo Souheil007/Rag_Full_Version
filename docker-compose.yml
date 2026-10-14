@@ -1,0 +1,29 @@
+services:
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rag-full-version:latest
+    container_name: rag-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Mount data directory so local documents can be indexed without rebuilding
+      - ./data:/app/data
+      # Persist ChromaDB vector store data across container restarts
+      - ./chroma_db:/app/chroma_db
+      # Persist execution logs
+      - ./logs:/app/logs
+      # Persist evaluation and document inspection reports
+      - ./reports:/app/reports
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

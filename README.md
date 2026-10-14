@@ -6,6 +6,7 @@
 [![Docling AST](https://img.shields.io/badge/Docling-AST_Layout_Engine-purple.svg)](https://github.com/DS4SD/docling)
 [![Mistral Pixtral](https://img.shields.io/badge/Mistral-Pixtral_VLM-ff7000.svg)](https://mistral.ai)
 [![Hybrid Search](https://img.shields.io/badge/Retrieval-ChromaDB_%2B_BM25_%2B_Rerank-success.svg)](#-retrieval-engine)
+[![Docker Ready](https://img.shields.io/badge/Docker-Compose_Ready-2496ED.svg?logo=docker&logoColor=white)](#-getting-started)
 [![Benchmark Accuracy](https://img.shields.io/badge/Benchmark_Accuracy-100%25-brightgreen.svg)](reports/sample_tables_rag_evaluation_report.md)
 [![Median Latency](https://img.shields.io/badge/Latency_P50-1.82s-blue.svg)](reports/sample_tables_rag_evaluation_report.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -191,6 +192,9 @@ The repository follows a structured engineering roadmap detailed in the [`plans/
 Rag_Full_Version/
 ├── README.md                      # Project description, philosophy, and setup guide
 ├── requirements.txt               # Dependencies (FastAPI, Docling, ChromaDB, Mistral, etc.)
+├── Dockerfile                     # Multi-stage security-hardened container specification
+├── docker-compose.yml             # Container orchestration with persistent volumes
+├── .dockerignore                  # Docker build context exclusions
 ├── .env / .env.example            # Environment variables and API keys
 ├── .gitignore                     # Git ignore definitions
 ├── config.yaml                    # Central configuration file
@@ -298,8 +302,34 @@ Rag_Full_Version/
 
 ## 🚀 Getting Started
 
-### 1. Installation
+### Option A: Running with Docker (Recommended)
 
+Run the entire RAG pipeline—including IBM Docling neural layout models, ChromaDB vector persistence, and FastAPI server—inside an isolated, production-ready container with a single command:
+
+#### 1. Configure Environment
+```bash
+cp .env.example .env
+# Fill in your MISTRAL_API_KEY (and optional LANGFUSE / SENTRY keys) in .env
+```
+
+#### 2. Start Services via Docker Compose
+```bash
+docker compose up --build -d
+```
+
+- **Interactive Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check Endpoint**: [http://localhost:8000/health](http://localhost:8000/health)
+- **Real-Time Container Logs**: `docker compose logs -f`
+- **Graceful Shutdown**: `docker compose down`
+
+> [!TIP]
+> The `docker-compose.yml` mounts `./data`, `./chroma_db`, and `./reports` directly as host volumes. You can drop new PDFs into `data/` and see index changes and reports persist immediately without rebuilding the image.
+
+---
+
+### Option B: Local Python Environment
+
+#### 1. Installation
 Create and activate a virtual environment, then install dependencies:
 
 ```bash
@@ -312,16 +342,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment
-
-Copy `.env.example` to `.env` and fill in your API keys:
-
+#### 2. Configure Environment
 ```bash
 cp .env.example .env
 ```
 
-### 3. Run the Application
-
+#### 3. Run the Application
 Start the FastAPI server:
 
 ```bash
@@ -331,8 +357,7 @@ python main.py
 * API Docs (Swagger): `http://localhost:8000/docs`
 * Health Check: `http://localhost:8000/health`
 
-### 4. Inspect Document Chunking & Table Health
-
+#### 4. Inspect Document Chunking & Table Health
 To inspect how any document is parsed, chunked, and validated:
 
 ```bash
