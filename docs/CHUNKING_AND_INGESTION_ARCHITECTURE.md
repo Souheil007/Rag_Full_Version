@@ -14,10 +14,10 @@ flowchart TD
     A["Raw Document (PDF, DOCX, TXT)"] --> B["Stage 1: Layout Engine (Docling)"]
     B --> C["Stage 2: Document AST Construction (doc_tree.py)"]
     C --> D["Stage 3: Extraction & Structural Health Checks"]
-    D --> D1["QualityScorer ($Q_{score}$)"]
+    D --> D1["QualityScorer (Q_score)"]
     D --> D2["TableSanityChecker (Health Score & Skew Detection)"]
-    D2 -->|Needs Repair (e.g. Health < 0.70)| E["Stage 4: VLM Table Repair (Mistral Pixtral-12B)"]
-    D2 -->|Healthy| F["Stage 5: Block-Type Chunking (block_chunker.py)"]
+    D2 -->|"Needs Repair (Health < 0.70)"| E["Stage 4: VLM Table Repair (Mistral Pixtral-12B)"]
+    D2 -->|"Healthy"| F["Stage 5: Block-Type Chunking (block_chunker.py)"]
     E --> F
     F --> G["Stage 6: Dual Representation Serialization"]
     G --> G1["[A] Content for Vector Embedding (KV Linearization)"]
