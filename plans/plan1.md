@@ -8,6 +8,7 @@ Upgrade the basic vector retrieval into a production-grade **Hybrid Search and C
 ## 🏗️ Architecture & Component Flow
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart LR
     Q["User Query"] --> S["Sparse BM25 Search"]
     Q --> D["Dense Vector Search"]

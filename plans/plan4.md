@@ -8,6 +8,7 @@ Minimize LLM token spend, reduce end-to-end P95 response latency, and intelligen
 ## 🏗️ Optimization Architecture
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     Q["User Query"] --> C["Semantic Vector Cache (Bounded LRU)"]
     C -->|"Cache Hit (Similarity >= Threshold & Verified)"| R1["Return Cached Response ($0, ~5-15ms)"]

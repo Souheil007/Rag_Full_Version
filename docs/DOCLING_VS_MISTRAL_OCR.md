@@ -18,6 +18,7 @@ This document details:
 When a document runs through Docling, several specialized neural models work together:
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     PDF["Input PDF / Document"] --> OCR["1. OCR Engine (RapidOCR / EasyOCR)<br/>Extracts raw characters & bounding boxes"]
     PDF --> Layout["2. Layout Model (Docling-Layout-Heron / YOLO)<br/>Detects Sections, Tables, Paragraphs, Code"]
@@ -78,6 +79,7 @@ While **$0.004 per page** sounds cheap for 50 pages ($0.20), in production enter
 The most cost-effective and robust approach in production RAG is **Tiered Routing**:
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     Doc["Input Document"] --> Docling["Docling Local Engine (95% of documents)<br/>Cost: $0.00"]
     Docling --> HealthCheck{"TableSanityChecker<br/>Health Score >= 0.70?"}

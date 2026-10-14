@@ -8,6 +8,7 @@ Build a comprehensive evaluation framework to measure, monitor, and mathematical
 ## 🏗️ Architecture & Metric Taxonomy
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     subgraph Retrieval ["1. Retrieval Quality Metrics"]
         P["Precision@K"]

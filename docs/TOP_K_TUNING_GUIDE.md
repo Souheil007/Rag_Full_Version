@@ -134,6 +134,7 @@ If your end goal is to send $K = 5$ chunks to the LLM, and you only ask ChromaDB
 Modern enterprise search engines (Google, Elastic, Vespa) all use a Two-Stage Funnel:
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     Q["User Query"] --> Stage1["Stage 1: Fast Heuristic Over-Fetch (High Recall)<br/>20 Dense + 20 Sparse Chunks (~5 ms)"]
     Stage1 --> RRF["Reciprocal Rank Fusion (RRF)<br/>Deduplicated Candidate Pool of up to 40 Chunks"]

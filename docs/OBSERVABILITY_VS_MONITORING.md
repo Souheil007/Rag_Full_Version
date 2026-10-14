@@ -34,6 +34,7 @@ Consider what happens when a user asks:
 > *"What is our company's refund policy for damaged goods?"*
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     Q["User Query"] --> S1["1. Embedding & BM25 Search"]
     S1 --> S2["2. Cross-Encoder Reranker"]
@@ -57,6 +58,7 @@ flowchart TD
 ## 4. The Tooling Landscape
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart LR
     subgraph APM ["Infrastructure & APM"]
         D["Datadog / Prometheus"]

@@ -8,6 +8,7 @@ Design and implement a unified **Monitoring & Semantic Observability** layer for
 ## 🔍 Monitoring vs. Observability: The RAG Dilemma
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     subgraph Monitoring ["1. Operational Monitoring (The 'What')"]
         M1["HTTP Status & Error Rates"]
@@ -43,6 +44,7 @@ flowchart TD
 Every `/query` request creates a root trace with child execution spans:
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     subgraph Tracing ["TRACED EXECUTION SPANS"]
         S0["API /query Request"] --> S1["Span 1: Semantic Cache"]

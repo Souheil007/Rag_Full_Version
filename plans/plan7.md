@@ -10,6 +10,7 @@ This plan synthesizes real-world production insights into an operationally resil
 ## 💥 The Core Dilemma: Why Naive Chunking Fails on Complex Documents
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     subgraph Naive ["Naive Ingestion & Chunking (Catastrophic Failures)"]
         N1["Linear Text Stream / Blind OCR"] --> N2["Hallucinates numbers (turns 6 into 5 in VLMs)"]
@@ -43,6 +44,7 @@ flowchart TD
 ## 🏗️ The Production Architecture
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart LR
     subgraph L1 ["1. Layout & Extraction"]
         PDF["Complex PDF"] --> EX["Docling Native Stream"]
@@ -160,6 +162,7 @@ class DocumentNode(BaseModel):
 Stop sliding character windows across the document. Chunk strictly according to **BlockType**:
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     Node["Document Block"] --> Check{"Block Type?"}
     
@@ -210,6 +213,7 @@ To avoid high latency and API bill shock, do not blindly call LLMs for every tab
 ### Layer 6: Retrieval-Time Hit Collapser & Token Budget Manager
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     Hits["Top-K Candidate Hits (Rows, Paragraphs, Tables)"] --> Dedup["1. Sibling Collapse & Deduplication"]
     Dedup --> Budget{"2. Check Token Budget (e.g., max 2,500 tokens)"}

@@ -20,6 +20,7 @@ Here is the exact flow of data and component execution across the two main pipel
 #### 📊 Visual Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     subgraph Ingestion ["📥 1. DOCUMENT INGESTION & DUAL INDEXING"]
         A1["📄 Raw Documents"] --> A2["✂️ Text Chunker"]

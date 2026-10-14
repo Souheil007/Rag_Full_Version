@@ -12,6 +12,7 @@ In a production RAG system, the primary question interviewers and users ask is:
 Rather than relying on another expensive, slow generative LLM to "judge" answers in the serving path (which introduces seconds of user latency and doubles token spend), this project implements a **3-tier, low-latency discriminative guardrail architecture** powered by **Jev (TypeSafe AI / OpenRouter)**.
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     Q["❓ User Query"] --> RET["🔍 Hybrid Retrieval & Reranker"]
     RET --> LLM["💬 LLM Generation (Mistral/Gemini)"]
