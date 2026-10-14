@@ -37,6 +37,7 @@ data/*
 !data/eval/
 chroma_db/
 faiss_index/
+*.pkl
 
 
 # Logs
