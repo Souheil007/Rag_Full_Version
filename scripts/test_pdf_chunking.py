@@ -11,6 +11,7 @@ from src.ingestion.layout_parser import LayoutParser
 from src.ingestion.doc_tree import BlockType
 from src.ingestion.quality_scorer import TableSanityChecker
 from src.chunking.block_chunker import BlockChunker
+from src.chunking.table_repairer import TableRepairer
 from src.retrieval.hit_collapser import HitCollapser
 
 
@@ -65,7 +66,9 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             print(f"{indent}└─ [H{s.level}] {s.content}")
 
     table_checker = TableSanityChecker(repair_threshold=0.70)
+    table_repairer = TableRepairer(provider="mistral")
     table_health_reports = {}
+    table_repair_results = {}
 
     if tables:
         print("\n📊 Detected Tables, Health Diagnostic & Alignment Check:")
@@ -81,7 +84,23 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             h_report = table_checker.evaluate_table(table_id=t.id, headers=headers, rows=rows)
             table_health_reports[t.id] = h_report
 
-            status_symbol = "⚠️ REPAIR REQUIRED" if h_report.needs_repair else "✅ Healthy"
+            if h_report.needs_repair:
+                status_symbol = "⚠️ REPAIR REQUIRED"
+                # Route to TableRepairer
+                repair_res = table_repairer.repair_table_node(t, pdf_path=str(path), health_report=h_report)
+                table_repair_results[t.id] = repair_res
+
+                if repair_res.repaired:
+                    status_symbol = "✨ REPAIRED (Mistral OCR)"
+                    # Update table in place
+                    t.content = repair_res.new_markdown or t.content
+                    t.table_metadata["headers"] = repair_res.new_headers
+                    t.table_metadata["rows"] = repair_res.new_rows
+                else:
+                    status_symbol = f"⚠️ REPAIR SKIPPED ({repair_res.method})"
+            else:
+                status_symbol = "✅ Healthy"
+
             print(f"  • Table {idx}: '{caption}' | Health: {h_report.health_score:.2f} [{status_symbol}]")
             print(f"    - ID: `{t.id}` | Prose: {prose_link}")
             print(f"    - Columns ({len(headers)}): {headers}")
@@ -89,6 +108,9 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             if h_report.issues:
                 for issue in h_report.issues:
                     print(f"      🚩 Issue: {issue}")
+            if t.id in table_repair_results:
+                r_info = table_repair_results[t.id]
+                print(f"      🔧 Repair Detail: [{r_info.method}] {r_info.reason}")
 
     # 3. Block-Type Chunking
     print("\n" + "=" * 80)
@@ -210,6 +232,10 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             if h_rep.issues:
                 for issue in h_rep.issues:
                     report_lines.append(f"  - 🚩 *{issue}*")
+        if t.id in table_repair_results:
+            rep = table_repair_results[t.id]
+            rep_status = "✨ REPAIRED" if rep.repaired else f"⚠️ SKIPPED / FAILED ({rep.method})"
+            report_lines.append(f"- **VLM Repair**: {rep_status} — {rep.reason}")
         report_lines.append(f"- **Section Path**: `{' > '.join(t.section_path)}`")
         report_lines.append(f"- **Prose Link**: {prose_link}")
         report_lines.append(f"- **Rows**: {total_rows} | **Columns** ({len(headers)}): `{headers}`")
