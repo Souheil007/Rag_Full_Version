@@ -23,10 +23,14 @@ Here is the exact flow of data and component execution across the two main pipel
 %%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px', 'lineColor': '#2b7fff', 'edgeLabelBackground': '#ffffff', 'textColor': '#1f2937' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
     subgraph Ingestion ["📥 1. DOCUMENT INGESTION & DUAL INDEXING"]
-        A1["📄 Raw Documents"] --> A2["✂️ Text Chunker"]
-        A2 --> A3["🧠 Dense Embedder"]
-        A3 --> A4[("🗄️ ChromaDB Store")]
-        A2 --> A5[("📊 Okapi BM25 Index")]
+        A1["📄 Complex Documents<br/>(PDF, DOCX, TXT)"] --> A2["🌳 Layout Parser<br/>(Docling AST & doc_tree)"]
+        A2 --> A3{"🩺 TableSanityChecker<br/>Health >= 0.70?"}
+        A3 -->|"Needs Repair"| A4["✨ VLM Table Repair<br/>(Mistral Pixtral-12B)"]
+        A3 -->|"Healthy"| A5["✂️ Block-Type Chunker<br/>(Atomic & Row-Groups)"]
+        A4 --> A5
+        A5 --> A6["🔄 Dual Serializer<br/>(KV Embeddings & Markdown)"]
+        A6 --> A7[("🗄️ ChromaDB Store")]
+        A6 --> A8[("📊 Okapi BM25 Index")]
     end
 
     subgraph Retrieval ["⚡ 2. HYBRID RETRIEVAL & RE-RANKING"]
@@ -36,11 +40,12 @@ flowchart TD
         B3 --> B5["🔀 Reciprocal Rank Fusion"]
         B4 --> B5
         B5 --> B6["🎯 Cross-Encoder Reranker"]
-        B6 --> B7["📝 Prompt Formatter"]
+        B6 --> B7["🧩 Hit Collapser & Deduplicator<br/>(Token Budget & Prose Link)"]
+        B7 --> B8["📝 Prompt Formatter"]
     end
 
     subgraph Generation ["🤖 3. GENERATION & GUARDRAILS"]
-        B7 --> C1["💬 LLM Provider"]
+        B8 --> C1["💬 LLM Provider"]
         C1 --> C2["📝 Raw Output"]
         C2 --> G1["🔍 Tier 1: Citation Verifier"]
         G1 --> G2["🧠 Tier 2: Jev Entailment Engine"]
@@ -60,39 +65,60 @@ flowchart TD
                        RAG SYSTEM ARCHITECTURE & DATAFLOW
 ===================================================================================
 
- 📥 INGESTION:   [ 📄 Documents ] ──► [ ✂️ Text Chunker ] ──► [ 🧠 Embedder ]
-                                             │                 │
-                                             ▼                 ▼
-                                   [ 📊 Okapi BM25 ]   [ 🗄️ ChromaDB ]
-                                          (Sparse)           (Dense)
- ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──│── ── ── ── ── ──│── ── ── ── ── ── ──
-                                             ▼                 ▼
+ 📥 INGESTION:   [ 📄 Documents ] ──► [ 🌳 Docling Layout AST ] ──► [ 🩺 TableSanityChecker ]
+                                                                             │
+                                           ┌─────────────────────────────────┴─────────────────────────────────┐
+                                           ▼                                                                   ▼
+                                  [ Needs Repair (<0.70) ]                                                [ Healthy ]
+                                           │                                                                   │
+                                           ▼                                                                   │
+                              [ ✨ Mistral Pixtral VLM ]                                                       │
+                                           │                                                                   │
+                                           └─────────────────────────────────┬─────────────────────────────────┘
+                                                                             ▼
+                                                                  [ ✂️ BlockChunker ]
+                                                                  (Atomic & Row-Groups)
+                                                                             │
+                                                                             ▼
+                                                                [ 🔄 Dual Serializer ]
+                                                                (KV Text & Clean MD)
+                                                                             │
+                                                       ┌─────────────────────┴─────────────────────┐
+                                                       ▼                                           ▼
+                                             [ 🗄️ ChromaDB Store ]                       [ 📊 Okapi BM25 Index ]
+                                                   (Dense)                                       (Sparse)
+ ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── │ ── ── ── ── ── ── ── ── ── ── ── ── ── ── │ ── ── ── ── ──
+                                                       ▼                                           ▼
  ⚡ QUERYING:    [ ❓ User Query ] ──► [ 🔍 Hybrid Search & RRF Fusion ]
-                                             │
-                                             ▼
-                                    [ 🎯 Cross-Encoder Reranker ]
-                                             │
-                                             ▼
-                                    [ 📝 Prompt Formatter ]
-                                             │
-                                             ▼
- 🤖 GENERATION:                     [ 💬 LLM (Mistral/Gemini) ]
-                                             │
-                                             ▼
- 🛡️ GUARDRAILS:                     [ 🔍 Tier 1: Citation Verifier ]
-                                             │
-                                             ▼
-                                    [ 🧠 Tier 2: Jev Entailment Engine ]
-                                             │
-                                             ▼
-                                    [ 🚨 Tier 3: Safe Fallback Handler ]
-                                             │
-                    ┌────────────────────────┴────────────────────────┐
-                    ▼                                                 ▼
-             [ 💡 Verified Safe Response ]             [ 📊 Telemetry & Monitoring ]
-                                                       ├─► Langfuse (Traces & Costs)
-                                                       ├─► Sentry (Exceptions & APM)
-                                                       └─► Local JSONL Logs
+                                                       │
+                                                       ▼
+                                              [ 🎯 Cross-Encoder Reranker ]
+                                                       │
+                                                       ▼
+                                              [ 🧩 HitCollapser & Sibling Deduplicator ]
+                                              (Context Budgeting & Story Linking)
+                                                       │
+                                                       ▼
+                                              [ 📝 Prompt Formatter ]
+                                                       │
+                                                       ▼
+ 🤖 GENERATION:                               [ 💬 LLM (Mistral/Gemini) ]
+                                                       │
+                                                       ▼
+ 🛡️ GUARDRAILS:                               [ 🔍 Tier 1: Citation Verifier ]
+                                                       │
+                                                       ▼
+                                              [ 🧠 Tier 2: Jev Entailment Engine ]
+                                                       │
+                                                       ▼
+                                              [ 🚨 Tier 3: Safe Fallback Handler ]
+                                                       │
+                              ┌────────────────────────┴────────────────────────┐
+                              ▼                                                 ▼
+                       [ 💡 Verified Safe Response ]             [ 📊 Telemetry & Monitoring ]
+                                                                 ├─► Langfuse (Traces & Costs)
+                                                                 ├─► Sentry (Exceptions & APM)
+                                                                 └─► Local JSONL Logs
 ===================================================================================
 ```
 
@@ -100,31 +126,30 @@ flowchart TD
 ### ⚙️ Step-by-Step Breakdown
 
 #### 1. Ingestion & Indexing Phase (`POST /index` & `DELETE /index`)
-* **Incremental Ingestion (`POST /index`)**:
-  1. **Document Loading**: `DocumentLoader` scans the target folder and parses supported file formats (`.pdf`, `.txt`, `.csv`, `.md`, `.docx`).
-  2. **Boundary-Aware Text Chunking**: `TextChunker` recursively divides text along natural structural boundaries (`\n\n`, `\n`, sentence endings, word breaks) to ensure zero mid-word cuts and paragraph integrity.
-  3. **Dense Embedding Generation**: `Embedder` batch-calculates dense representations (e.g. 384-dimensional `all-MiniLM-L6-v2` vectors).
-  4. **Dual Incremental Indexing**:
-     * **Dense Vectors** are upserted into `ChromaDB` (`vector_store.add_documents()` with `upsert`), preventing duplicate keys.
-     * **Sparse Term Frequencies** are incrementally merged into the in-memory `Okapi BM25` corpus via `bm25_retriever.add_documents()`.
-* **Corpus Reset (`DELETE /index`)**:
-  * Atomically purges all dense vectors from `ChromaDB`, clears the in-memory `BM25` corpus/statistics, and flushes the `SemanticCache`.
+* **Docling Layout Analysis & AST Building**: `LayoutParser` extracts structural blocks (`SectionHeaderItem`, `TableItem`, `TextItem`, `CodeItem`) into a typed hierarchy (`DocumentTree`) with section breadcrumbs and table-to-prose linkages.
+* **Extraction & Table Health Sanity Checks**: 
+  - `ExtractionQualityScorer` calculates $Q_{score} \in [0.0, 1.0]$ based on text cleanliness and character noise.
+  - `TableSanityChecker` inspects table column alignment, missing cell voids, and jagged row lengths.
+* **VLM Table Repairer**: If a table fails sanity checks (e.g., column-swapped borderless grid), it routes page images to Mistral's **`pixtral-12b-2409`** multimodal model to visually transcribe the exact table into pristine Markdown.
+* **Block-Type Chunking**: `BlockChunker` keeps small tables ($\le 25$ rows) atomic and slices oversized tables into row-groups with replicated schema headers.
+* **Dual Representation Serialization**: `TableSerializer` produces linearized Key-Value sentences for vector embeddings and Markdown tables for LLM prompt context.
+* **Dual Indexing**: Upserts dense representations into `ChromaDB` and sparse lexical statistics into `Okapi BM25`.
 
 #### 2. Querying, Caching & Generation Phase (`POST /query`)
 1. **Semantic Cache Lookup**: Evaluates query cosine similarity against cached vectors (`similarity_threshold >= 0.95`). If a verified cached response exists, returns immediately ($0 LLM cost, ~5-15ms latency).
 2. **Tracing Started**: `Tracer` creates a unique `trace_id` for distributed observability.
 3. **Hybrid Retrieval (`Retriever`)**:
-   * Runs **Dense Vector Search** (semantic similarity) and **Sparse BM25 Search** (exact keyphrase match) in parallel.
-   * **Reciprocal Rank Fusion (RRF)** combines both candidate lists into a unified score array.
-   * **Cross-Encoder Reranker** scores the top candidates jointly with the query for maximum precision.
-   * *(Optional)* **Context Compression** prunes redundant or noisy sentences.
-4. **Prompt Formatting**: `format_rag_prompt()` injects top chunks into standard system instruction templates with strict grounding constraints.
-5. **LLM Generation**: `LLMClient` calls the selected provider (`Mistral`, `Gemini`, `OpenAI`, or `Anthropic`) to generate the raw response.
-6. **Multi-Tier Guardrail Verification**:
-   * **Tier 1 (Citation Verifier)**: Deterministic regex parsing validating that numeric citations (`[1]`, `[2]`) and file sources (`[Source: doc.pdf]`) exist within retrieved context.
-   * **Tier 2 (Hallucination Detector & Jev)**: Decomposes assertions into claims and verifies entailment via the **Jev** discriminative decision engine (or gracefully bypasses Tier 2 if Jev is down/unresponsive).
-   * **Tier 3 (Fallback Handler)**: In strict mode, intercepts any citation failure or ungrounded statement and replaces it with a standardized safe refusal message.
-   * **Cache Storage**: Verified, approved answers are saved into the bounded LRU semantic cache with TTL.
+   * Runs **Dense Vector Search** and **Sparse BM25 Search** in parallel.
+   * **Reciprocal Rank Fusion (RRF)** combines candidate lists into a unified score array.
+   * **Cross-Encoder Reranker** scores top candidates jointly with the query.
+4. **Hit Collapser & Sibling Deduplication**: `HitCollapser` groups sibling row-chunks belonging to the same table ID, pulls introductory prose (`preceding_prose_id`), and caps context within token budgets.
+5. **Prompt Formatting**: `format_rag_prompt()` injects structured Markdown tables and prose into strict grounding templates.
+6. **LLM Generation**: `LLMClient` calls the selected provider (`Mistral`, `Gemini`, `OpenAI`, or `Anthropic`) to generate the raw response.
+7. **Multi-Tier Guardrail Verification**:
+   * **Tier 1 (Citation Verifier)**: Deterministic regex parsing validating that numeric citations (`[1]`, `[2]`) and file sources exist within context.
+   * **Tier 2 (Hallucination Detector & Jev)**: Decomposes assertions into claims and verifies entailment via the **Jev** discriminative decision engine.
+   * **Tier 3 (Fallback Handler)**: In strict mode, intercepts citation failures or ungrounded statements and returns a safe refusal message.
+8. **Cache Storage**: Verified, approved answers are saved into the bounded LRU semantic cache with TTL.
 
 #### 3. Observability & Monitoring Phase
 * **Langfuse Tracing**: Exports hierarchical trace trees (retrieval duration, prompt payload, generation latency, guardrail execution, and token counts) to Langfuse.
@@ -144,6 +169,7 @@ The repository follows a structured engineering roadmap detailed in the [`plans/
 | **[Plan 3](plans/plan3.md)** | **Failure Modes & Guardrails (Jev)** | ✅ Complete | Multi-tiered guardrails with deterministic citation bounds checking, statement entailment via Jev discriminative decision model, and safe fallback handling. |
 | **[Plan 6](plans/plan6.md)** | **Observability & Sentry Error Monitoring** | ✅ Complete | End-to-end span tracing (`Tracer`), operational metrics (`MetricsCollector`), Langfuse observability, and Sentry APM error monitoring. |
 | **[Plan 4](plans/plan4.md)** | **Cost & Latency Optimization** | ✅ Complete | Semantic vector query cache ($0 repeat cost), query complexity router (Flash vs. Pro), and token/latency profiler. |
+| **[Plan 7](plans/plan7.md)** | **Complex Document Ingestion & Chunking** | ✅ Complete | Docling layout AST engine, TableSanityChecker, Pixtral VLM table repair fallback, dual serialization (KV & MD), and runtime HitCollapser. |
 | **[Plan 5](plans/plan5.md)** | **System Design & 100x Scaling (ADRs)** | ⏳ Pending | Architecture Decision Records (RAG vs. Fine-Tuning, 100x scale sharding), and Senior AI Interview Cheat Sheet. |
 
 
@@ -156,13 +182,15 @@ The repository follows a structured engineering roadmap detailed in the [`plans/
 ```
 Rag_Full_Version/
 ├── README.md                      # Project description, philosophy, and setup guide
-├── requirements.txt               # Dependencies (FastAPI, ChromaDB, Google GenAI, etc.)
+├── requirements.txt               # Dependencies (FastAPI, Docling, ChromaDB, Mistral, etc.)
 ├── .env / .env.example            # Environment variables and API keys
 ├── .gitignore                     # Git ignore definitions
 ├── config.yaml                    # Central configuration file
 ├── AGENTS.md                      # Coding standards & agent instructions
 ├── main.py                        # Service entry point
 ├── docs/                          # Comprehensive architectural guides & benchmarks
+│   ├── CHUNKING_AND_INGESTION_ARCHITECTURE.md # 7-stage block chunking & dual serialization
+│   ├── DOCLING_VS_MISTRAL_OCR.md         # Docling vs Mistral OCR trade-offs, pricing & hybrid VLM
 │   ├── GUARDRAILS_AND_FALLBACK_GUIDE.md  # 3-Tier guardrails, Jev entailment & fallback
 │   ├── RETRIEVAL_METRICS_AND_SCORES.md   # Distance, BM25, RRF & Cross-Encoder scores
 │   ├── EVALUATION_METRICS_GUIDE.md       # Precision@K, Recall@K, MRR & LLM Judge
@@ -174,27 +202,39 @@ Rag_Full_Version/
 │   ├── plan3.md                   # Plan 3: Failure Modes & Guardrails (Done)
 │   ├── plan4.md                   # Plan 4: Cost & Latency Optimization (Done)
 │   ├── plan5.md                   # Plan 5: System Design & Scaling ADRs
-│   └── plan6.md                   # Plan 6: Observability & Sentry Monitoring (Done)
+│   ├── plan6.md                   # Plan 6: Observability & Sentry Monitoring (Done)
+│   └── plan7.md                   # Plan 7: Complex Document Ingestion & Table Chunking (Done)
+├── scripts/                       # Operational scripts & benchmarking CLIs
+│   ├── test_pdf_chunking.py       # PDF layout inspection, table sanity & chunk provenance CLI
+│   └── eval_chunking_benchmark.py # 25-question retrieval benchmark on complex tables
 ├── .agents/
 │   └── skills/
 │       └── rag-conventions/
 │           └── SKILL.md           # Custom skill for naming conventions and docstrings
 ├── src/
-│   ├── ingestion/                 # Document ingestion (PDF, CSV, TXT, DOCX, MD)
+│   ├── ingestion/                 # Document layout extraction & tree modeling
 │   │   ├── __init__.py
-│   │   └── loader.py
-│   ├── chunking/                  # Text chunking & sentence compression
+│   │   ├── doc_tree.py            # Hierarchical DocumentNode AST & section breadcrumbs
+│   │   ├── layout_parser.py       # Dedicated Docling layout engine & disambiguation
+│   │   ├── quality_scorer.py      # Q_score extraction scorer & TableSanityChecker
+│   │   └── loader.py              # Directory file loader
+│   ├── chunking/                  # Block-type chunking & table serializers
 │   │   ├── __init__.py
-│   │   ├── chunker.py
-│   │   └── compression.py
+│   │   ├── block_chunker.py       # Atomic small tables & row-grouping with replicated headers
+│   │   ├── table_parser.py        # Multi-row fill-down & headerless page stitcher
+│   │   ├── table_serializer.py    # KV linearization for embeddings & Markdown for LLM
+│   │   ├── table_repairer.py      # VLM table repair fallback (Mistral Pixtral-12B)
+│   │   ├── chunker.py             # Recursive text chunker (fallback/baseline)
+│   │   └── compression.py         # Contextual sentence compressor
 │   ├── embeddings/                # Vector embeddings (SentenceTransformers, OpenAI, Gemini)
 │   │   ├── __init__.py
 │   │   └── embedder.py
 │   ├── vectordb/                  # Vector database (ChromaDB, FAISS, in-memory)
 │   │   ├── __init__.py
 │   │   └── vector_store.py
-│   ├── retrieval/                 # Unified search engine & hybrid rankers
+│   ├── retrieval/                 # Unified search engine, hybrid rankers & deduplicators
 │   │   ├── __init__.py
+│   │   ├── hit_collapser.py       # Table sibling deduplication & token budgeter
 │   │   ├── bm25_retriever.py      # Okapi BM25 keyword search
 │   │   ├── hybrid_retriever.py    # Reciprocal Rank Fusion (RRF)
 │   │   ├── reranker.py            # Cross-Encoder re-ranker
@@ -213,7 +253,7 @@ Rag_Full_Version/
 │   ├── prompts/                   # Prompt templates & context formatting
 │   │   ├── __init__.py
 │   │   └── prompt_templates.py
-│   ├── llm/                       # LLM provider clients (Gemini, OpenAI, Anthropic)
+│   ├── llm/                       # LLM provider clients (Mistral, Gemini, OpenAI)
 │   │   ├── __init__.py
 │   │   └── llm_client.py
 │   ├── observability/             # Distributed tracing, APM, and metrics
@@ -231,11 +271,16 @@ Rag_Full_Version/
 ├── tests/                         # Unit & integration test suites
 │   ├── __init__.py
 │   ├── test_app.py
+│   ├── test_block_chunking.py
+│   ├── test_table_health.py
+│   ├── test_table_repairer.py
+│   ├── test_ugly_table_fixture.py
 │   ├── test_guardrails.py
 │   ├── test_hybrid_retriever.py
 │   ├── test_evaluation.py
 │   ├── test_observability.py
 │   └── test_optimization.py
+├── reports/                       # Generated benchmark & document inspection reports
 └── logs/                          # Application log files
     └── .gitkeep
 
@@ -278,15 +323,22 @@ python main.py
 * API Docs (Swagger): `http://localhost:8000/docs`
 * Health Check: `http://localhost:8000/health`
 
+### 4. Inspect Document Chunking & Table Health
+
+To inspect how any document is parsed, chunked, and validated:
+
+```bash
+python scripts/test_pdf_chunking.py data/sample-tables.pdf
+```
+This generates a detailed inspection report in `reports/inspection_sample-tables.md` displaying table sanity health scores, relational links, and dual representations.
+
 ---
 
 ## 🧪 Running Tests
 
-Run the test suite using `unittest` or `pytest`:
+Run the test suite using `pytest`:
 
 ```bash
-python -m unittest discover tests
-# or
 pytest -v
 ```
 
@@ -294,6 +346,8 @@ pytest -v
 
 ## 📚 In-Depth Documentation
 
+* [**Chunking & Ingestion Architecture Guide**](docs/CHUNKING_AND_INGESTION_ARCHITECTURE.md): Comprehensive 7-stage guide on Docling AST layout parsing, TableSanityChecker, Pixtral VLM repair, block-type chunking, dual serialization, and runtime hit collapsing.
+* [**Docling vs. Mistral OCR & Vision LLMs**](docs/DOCLING_VS_MISTRAL_OCR.md): In-depth comparison of multi-model layout engines vs. end-to-end vision models, pricing economics ($0.00 vs. $4/1k pages), and the 95/5 hybrid production pattern.
 * [**Guardrails & Hallucination Prevention Guide**](docs/GUARDRAILS_AND_FALLBACK_GUIDE.md): 3-tier guardrail architecture using Jev discriminative entailment, regex citation bounds verification, fallback trigger mechanics, and zero-downtime execution.
 * [**Retrieval Metrics and Scoring Guide**](docs/RETRIEVAL_METRICS_AND_SCORES.md): Complete breakdown of `distance`, `score`, `bm25_score`, `rrf_score`, and `rerank_score`, including mathematical formulas, healthy ranges, and real-world interpretations.
 * [**Evaluation Metrics & Benchmark Guide**](docs/EVALUATION_METRICS_GUIDE.md): Mathematical breakdown of Precision@K, Recall@K, Hit Rate, MRR, and LLM-as-a-Judge generation metrics (Faithfulness & Relevance) with live benchmark results.
