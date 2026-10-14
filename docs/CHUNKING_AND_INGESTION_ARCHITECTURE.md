@@ -10,20 +10,21 @@ This project implements an end-to-end, production-grade **Block-Type Chunking Ar
 ## 2. End-to-End Pipeline Workflow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px' }, 'flowchart': { 'nodeSpacing': 30, 'rankSpacing': 40, 'padding': 15, 'useMaxWidth': true } } }%%
 flowchart TD
-    A["Raw Document (PDF, DOCX, TXT)"] --> B["Stage 1: Layout Engine (Docling)"]
-    B --> C["Stage 2: Document AST Construction (doc_tree.py)"]
-    C --> D["Stage 3: Extraction & Structural Health Checks"]
-    D --> D1["QualityScorer (Q_score)"]
-    D --> D2["TableSanityChecker (Health Score & Skew Detection)"]
-    D2 -->|"Needs Repair (Health < 0.70)"| E["Stage 4: VLM Table Repair (Mistral Pixtral-12B)"]
-    D2 -->|"Healthy"| F["Stage 5: Block-Type Chunking (block_chunker.py)"]
+    A["Raw Document<br/>(PDF, DOCX, TXT)"] --> B["Stage 1: Layout Engine<br/>(Docling)"]
+    B --> C["Stage 2: AST Construction<br/>(doc_tree.py)"]
+    C --> D["Stage 3: Extraction &<br/>Structural Health Checks"]
+    D --> D1["QualityScorer<br/>(Q_score)"]
+    D --> D2["TableSanityChecker<br/>(Skew & Geometry Health)"]
+    D2 -->|"Needs Repair (Health < 0.70)"| E["Stage 4: VLM Table Repair<br/>(Mistral Pixtral-12B)"]
+    D2 -->|"Healthy"| F["Stage 5: Block-Type Chunking<br/>(block_chunker.py)"]
     E --> F
-    F --> G["Stage 6: Dual Representation Serialization"]
-    G --> G1["[A] Content for Vector Embedding (KV Linearization)"]
-    G --> G2["[B] Content for LLM Context (Pristine Markdown Table)"]
-    G --> H["Stage 7: Indexing in Vector Store (ChromaDB) & BM25"]
-    H --> I["Runtime: Hit Collapser & Sibling Deduplicator (hit_collapser.py)"]
+    F --> G["Stage 6: Dual Representation<br/>Serialization"]
+    G --> G1["[A] Content for Vector Embedding<br/>(KV Linearized Sentences)"]
+    G --> G2["[B] Content for LLM Context<br/>(Pristine Markdown Table)"]
+    G --> H["Stage 7: Vector Store Indexing<br/>(ChromaDB & BM25)"]
+    H --> I["Runtime: Hit Collapser &<br/>Sibling Deduplicator (hit_collapser.py)"]
 ```
 
 ---
