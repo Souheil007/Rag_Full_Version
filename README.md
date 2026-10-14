@@ -1,6 +1,14 @@
-# RAG Full Version
+# ⚡ Production-Grade Document RAG Engine
 
-A production-ready, modular Retrieval-Augmented Generation (RAG) system built from **First Principles** with clean Python architecture.
+> **Enterprise-grade Document RAG with IBM Docling AST parsing, automated VLM table repair (Pixtral-12B), dual-representation serialization, hybrid RRF retrieval, deterministic guardrails, and sub-2s latency.**
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Docling AST](https://img.shields.io/badge/Docling-AST_Layout_Engine-purple.svg)](https://github.com/DS4SD/docling)
+[![Mistral Pixtral](https://img.shields.io/badge/Mistral-Pixtral_VLM-ff7000.svg)](https://mistral.ai)
+[![Hybrid Search](https://img.shields.io/badge/Retrieval-ChromaDB_%2B_BM25_%2B_Rerank-success.svg)](#-retrieval-engine)
+[![Benchmark Accuracy](https://img.shields.io/badge/Benchmark_Accuracy-100%25-brightgreen.svg)](reports/sample_tables_rag_evaluation_report.md)
+[![Median Latency](https://img.shields.io/badge/Latency_P50-1.82s-blue.svg)](reports/sample_tables_rag_evaluation_report.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
