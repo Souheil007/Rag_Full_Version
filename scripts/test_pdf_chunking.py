@@ -78,7 +78,7 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
 
     # 3. Block-Type Chunking
     print("\n" + "=" * 80)
-    print("✂️ Step 3: Block-Type Chunking Engine")
+    print("✂️ Step 3: Block-Type Chunking Engine & Relationships")
     print("=" * 80)
 
     chunker = BlockChunker(max_atomic_rows=25, row_group_size=12, row_overlap=2)
@@ -89,6 +89,28 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
     prose_chunks = [c for c in chunks if c.block_type != BlockType.TABLE]
     print(f"• Table Chunks: {len(table_chunks)} (Atomic or Row-Grouped with Replicated Schemas)")
     print(f"• Prose Chunks: {len(prose_chunks)}")
+
+    print("\n🔗 Chunk Provenance & Relations Summary:")
+    for idx, c in enumerate(chunks, 1):
+        rel_info = []
+        if c.block_type == BlockType.TABLE:
+            t_id = c.metadata.get("table_id")
+            rel_info.append(f"TableID: {t_id}")
+            if c.metadata.get("preceding_prose_id"):
+                rel_info.append(f"Linked Intro Prose: `{c.metadata['preceding_prose_id']}`")
+            if c.metadata.get("is_atomic"):
+                rel_info.append("Mode: Atomic (Full Table)")
+            else:
+                rel_info.append(f"Rows: {c.metadata.get('row_range')}")
+        else:
+            if c.metadata.get("parent_id"):
+                rel_info.append(f"Parent: `{c.metadata['parent_id']}`")
+            page = c.metadata.get("page")
+            if page:
+                rel_info.append(f"Page: {page}")
+
+        sec_str = " > ".join(c.metadata.get("section_path", []))
+        print(f"  [{idx:02d}] ID: {c.chunk_id:<20} | Type: {c.block_type.value:<10} | Section: {sec_str} | {' | '.join(rel_info)}")
 
     # Display sample chunk dual representation
     if table_chunks:
@@ -165,12 +187,54 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
         caption = t_meta.get("caption") or t.metadata.get("caption", "Untitled Table")
         prose_link = f"(Linked to prose: `{t.preceding_prose_id}`)" if t.preceding_prose_id else "(No preceding prose)"
         report_lines.append(f"### Table {idx}: {caption}")
+        report_lines.append(f"- **Table ID**: `{t.id}`")
         report_lines.append(f"- **Section Path**: `{' > '.join(t.section_path)}`")
         report_lines.append(f"- **Prose Link**: {prose_link}")
         report_lines.append(f"- **Rows**: {total_rows} | **Columns** ({len(headers)}): `{headers}`")
         report_lines.append("\n**Markdown Preview:**\n")
         report_lines.append(t.content[:500] + ("\n..." if len(t.content) > 500 else ""))
         report_lines.append("")
+
+    report_lines.extend(["", "## 3. All Generated Chunks & Relational Provenance"])
+    report_lines.append("| # | Chunk ID | Block Type | Section Path | Relational Links / Metadata |")
+    report_lines.append("| :--- | :--- | :--- | :--- | :--- |")
+
+    for idx, c in enumerate(chunks, 1):
+        sec = " > ".join(c.metadata.get("section_path", [])) or "Root"
+        rels = []
+        if c.block_type == BlockType.TABLE:
+            if c.metadata.get("table_id"):
+                rels.append(f"Table: `{c.metadata['table_id']}`")
+            if c.metadata.get("preceding_prose_id"):
+                rels.append(f"Intro Prose: `{c.metadata['preceding_prose_id']}`")
+            if c.metadata.get("is_atomic"):
+                rels.append("Atomic (Full)")
+            else:
+                rels.append(f"Rows: {c.metadata.get('row_range')}")
+        else:
+            if c.metadata.get("parent_id"):
+                rels.append(f"Parent: `{c.metadata['parent_id']}`")
+            if c.metadata.get("page"):
+                rels.append(f"Page: {c.metadata['page']}")
+
+        rel_str = ", ".join(rels) if rels else "-"
+        report_lines.append(f"| {idx} | `{c.chunk_id}` | `{c.block_type.value}` | {sec} | {rel_str} |")
+
+    report_lines.extend(["", "## 4. Chunk Content & Dual Representation Details"])
+    for idx, c in enumerate(chunks, 1):
+        report_lines.append(f"### Chunk {idx}: `{c.chunk_id}` ({c.block_type.value})")
+        report_lines.append(f"- **Section**: `{' > '.join(c.metadata.get('section_path', []))}`")
+        report_lines.append(f"- **Metadata**: `{c.metadata}`")
+        report_lines.append("\n#### [A] Content for Vector Embedding (KV / Semantic Linearization):\n")
+        report_lines.append("```text")
+        report_lines.append(c.content_for_embedding[:800] + ("\n... [truncated]" if len(c.content_for_embedding) > 800 else ""))
+        report_lines.append("```")
+        report_lines.append("\n#### [B] Content for LLM Context Generation:\n")
+        if c.block_type == BlockType.TABLE:
+            report_lines.append(c.content_for_generation)
+        else:
+            report_lines.append(f"> {c.content_for_generation}")
+        report_lines.append("\n---\n")
 
     report_file.write_text("\n".join(report_lines), encoding="utf-8")
 
