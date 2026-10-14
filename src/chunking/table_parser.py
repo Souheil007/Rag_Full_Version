@@ -221,7 +221,7 @@ class TableParser:
 
         if hasattr(table_item, "export_to_dataframe") and callable(table_item.export_to_dataframe):
             try:
-                df = table_item.export_to_dataframe()
+                df = table_item.export_to_dataframe(doc) if doc else table_item.export_to_dataframe()
                 headers = [str(c).strip() for c in df.columns]
                 rows = [[str(cell).strip() if cell is not None else "" for cell in row] for row in df.values]
             except Exception as e:

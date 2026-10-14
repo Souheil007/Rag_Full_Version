@@ -88,6 +88,20 @@ class HitCollapser:
             section_path = first_meta.get("section_path", [])
             preceding_prose_id = first_meta.get("preceding_prose_id")
 
+            # Auto-resolve full_table from doc_tree if not in external registry
+            if not full_table and doc_tree:
+                t_node = doc_tree.get_node(table_id)
+                if t_node and t_node.table_metadata:
+                    t_meta = t_node.table_metadata
+                    full_table = NormalizedTable(
+                        table_id=t_node.id,
+                        caption=t_meta.get("caption") or t_node.metadata.get("caption", ""),
+                        headers=t_meta.get("headers", []),
+                        rows=t_meta.get("rows", []),
+                        units=t_meta.get("units", {}),
+                        page_numbers=[t_node.metadata.get("page", 1)],
+                    )
+
             # Inject preceding introductory paragraph if available in doc_tree
             if preceding_prose_id and doc_tree:
                 prose_node = doc_tree.get_node(preceding_prose_id)
@@ -97,7 +111,7 @@ class HitCollapser:
                     formatted_sections.append(prose_block)
                     current_tokens += len(prose_block) // 4
 
-            # If full table is registered, calculate merged row range
+            # If full table is resolved, calculate merged row range
             if full_table:
                 total_rows = len(full_table.rows)
                 min_row = total_rows
@@ -141,12 +155,15 @@ class HitCollapser:
                     "section_path": section_path,
                 })
             else:
-                # Fallback: table not in registry, use generation content of first chunk
-                for sc in sibling_chunks:
-                    content = sc.get("content_for_generation") or sc.get("content", "")
-                    formatted_sections.append(content)
-                    current_tokens += len(content) // 4
-                    dedup_sources.append(first_meta)
+                # Fallback: table not in registry or tree; collapse to single source entry
+                contents = [
+                    sc.get("content_for_generation") or sc.get("content", "")
+                    for sc in sibling_chunks
+                ]
+                combined_content = "\n\n".join(c for c in contents if c)
+                formatted_sections.append(combined_content)
+                current_tokens += len(combined_content) // 4
+                dedup_sources.append(first_meta)
 
         # 3. Append prose hits respecting total token budget
         for ph in prose_hits:
