@@ -258,13 +258,13 @@ Before overbuilding, validate chunking performance on a frozen 25-question evalu
 
 ---
 
-## 📋 Implementation Roadmap
+## 📋 Implementation Roadmap & Status
 
-| Phase | Milestone | Deliverables |
-| :--- | :--- | :--- |
-| **Phase 1: Document Block Tree & Quality Scorer** | Foundation | • `src/ingestion/doc_tree.py` (`BlockType`, `DocumentNode`, Tree builder)<br>• `src/ingestion/quality_scorer.py` ($Q_{score}$ calculation) |
-| **Phase 2: Table Normalizer & Dual Serializer** | Extraction & Format | • `src/chunking/table_parser.py` (Fill-down normalizer, headerless multi-page stitcher)<br>• `src/chunking/table_serializer.py` (KV string for embedding, Markdown for LLM) |
-| **Phase 3: Block-Type Chunking Engine** | Core Chunking | • `src/chunking/block_chunker.py` (Atomic small tables, row-group sub-chunks with duplicated schema headers, prose pointer) |
-| **Phase 4: Hit Collapser & Token Budgeter** | Runtime Retrieval | • `src/retrieval/hit_collapser.py` (Sibling deduplication, dynamic $\pm 2$ row expansion, token cap) |
-| **Phase 5: Benchmark & Regression Suite** | Quality Assurance | • `tests/fixtures/ugly_multipage_table.pdf`<br>• `tests/test_block_chunking.py`<br>• 25-question retrieval evaluation script |
-| **Phase 6: Lazy LLM Story Fallback (Optional)** | Enhancement | • `src/chunking/story_generator.py` (Only for orphan tables if benchmark indicates need) |
+| Phase | Milestone | Deliverables | Status |
+| :--- | :--- | :--- | :---: |
+| **Phase 1: Document Block Tree & Quality Scorer** | Foundation | • `src/ingestion/doc_tree.py` (`BlockType`, `DocumentNode`, Tree builder)<br>• `src/ingestion/quality_scorer.py` ($Q_{score}$ calculation)<br>• `src/ingestion/layout_parser.py` (Dedicated Docling engine) | **DONE ✅** |
+| **Phase 2: Table Normalizer & Dual Serializer** | Extraction & Format | • `src/chunking/table_parser.py` (Fill-down normalizer, headerless multi-page stitcher, `from_docling_table`)<br>• `src/chunking/table_serializer.py` (KV string for embedding, Markdown for LLM) | **DONE ✅** |
+| **Phase 3: Block-Type Chunking Engine** | Core Chunking | • `src/chunking/block_chunker.py` (Atomic small tables, row-group sub-chunks with duplicated schema headers, prose pointer) | **DONE ✅** |
+| **Phase 4: Hit Collapser & Token Budgeter** | Runtime Retrieval | • `src/retrieval/hit_collapser.py` (Sibling deduplication, dynamic $\pm 2$ row expansion, token cap) | **DONE ✅** |
+| **Phase 5: Benchmark & Regression Suite** | Quality Assurance | • `tests/test_block_chunking.py` (Unit tests)<br>• `tests/test_docling_integration.py` (E2E tests)<br>• `tests/fixtures/ugly_multipage_table.pdf` (Multi-page test fixture)<br>• 25-question retrieval evaluation script | **IN PROGRESS 🟡** |
+| **Phase 6: Lazy LLM Story Fallback (Optional)** | Enhancement | • `src/chunking/story_generator.py` (Only for orphan tables if benchmark indicates need) | **PENDING ⚪** |
