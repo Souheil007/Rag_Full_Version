@@ -108,3 +108,123 @@ class ExtractionQualityScorer:
             },
             warnings=warnings,
         )
+
+
+class TableHealthReport(BaseModel):
+    """Health diagnostic report for a parsed table."""
+
+    table_id: str
+    health_score: float = Field(ge=0.0, le=1.0)
+    needs_repair: bool
+    metrics: dict[str, float] = Field(default_factory=dict)
+    issues: list[str] = Field(default_factory=list)
+
+
+class TableSanityChecker:
+    """Diagnoses structural table anomalies including column skew, empty cell voids, and dropped bands."""
+
+    def __init__(self, repair_threshold: float = 0.70) -> None:
+        """Initialize TableSanityChecker with repair threshold.
+
+        Args:
+            repair_threshold: Minimum acceptable health score in [0.0, 1.0].
+        """
+        self.repair_threshold = repair_threshold
+
+    def evaluate_table(
+        self,
+        table_id: str,
+        headers: list[str],
+        rows: list[list[str]],
+        warnings_from_parser: list[str] | None = None,
+    ) -> TableHealthReport:
+        """Evaluate structural health and detect column shifts or alignment skew.
+
+        Args:
+            table_id: Unique identifier of the table.
+            headers: List of column header strings.
+            rows: Matrix of row string cells.
+            warnings_from_parser: Optional parser/OCR level warnings.
+
+        Returns:
+            TableHealthReport with diagnostic health score and repair flag.
+        """
+        issues: list[str] = []
+        if warnings_from_parser:
+            issues.extend(warnings_from_parser)
+
+        num_cols = len(headers)
+        num_rows = len(rows)
+
+        if num_cols == 0 or num_rows == 0:
+            return TableHealthReport(
+                table_id=table_id,
+                health_score=0.0,
+                needs_repair=True,
+                metrics={"empty_table": 1.0},
+                issues=["Table has 0 columns or 0 data rows."],
+            )
+
+        # 1. Null / Empty Cell Ratio
+        total_cells = num_cols * num_rows
+        empty_cells = 0
+        for r in rows:
+            for c_idx in range(num_cols):
+                cell_val = r[c_idx].strip() if c_idx < len(r) else ""
+                if not cell_val:
+                    empty_cells += 1
+
+        empty_cell_ratio = empty_cells / max(total_cells, 1)
+        if empty_cell_ratio > 0.25:
+            issues.append(f"High empty cell ratio detected ({empty_cell_ratio * 100:.1f}%).")
+
+        # 2. Length Skew / Column Inversion Anomaly Detection
+        # Check if rightmost column has long descriptive text (e.g. questions) while leftmost has short booleans
+        col_avg_lens: list[float] = []
+        for col_idx in range(num_cols):
+            lens = [len(r[col_idx].strip()) for r in rows if col_idx < len(r)]
+            col_avg_lens.append(sum(lens) / max(len(lens), 1))
+
+        # Check for reversed/shifted layout: first col has tiny tokens (len <= 4) and last col has long sentences (len >= 20)
+        is_column_shifted = False
+        if num_cols >= 2:
+            first_col_len = col_avg_lens[0]
+            last_col_len = col_avg_lens[-1]
+            first_col_header_len = len(headers[0].strip()) if headers else 0
+
+            # If the first column header implies a question/name but data is tiny (e.g. Yes/No), and last column has long text
+            first_col_tokens = [r[0].strip().lower() for r in rows if len(r) > 0]
+            boolean_like_count = sum(1 for tok in first_col_tokens if tok in ("yes", "no", "true", "false", "1", "0", "x", "✓", "✗"))
+            if boolean_like_count / max(len(first_col_tokens), 1) >= 0.60 and last_col_len > 15.0:
+                is_column_shifted = True
+                issues.append(
+                    f"Column alignment skew detected: Column 1 consists of short boolean answers "
+                    f"while Column {num_cols} contains long descriptive text (avg len: {last_col_len:.1f})."
+                )
+
+        # 3. Jagged Row Lengths
+        jagged_rows = sum(1 for r in rows if len(r) != num_cols)
+        if jagged_rows > 0:
+            issues.append(f"{jagged_rows} rows have mismatching column counts (jagged grid).")
+
+        # Compute aggregate health score
+        col_shift_penalty = 0.50 if is_column_shifted else 1.0
+        empty_penalty = max(0.0, 1.0 - (empty_cell_ratio * 1.5))
+        jagged_penalty = max(0.0, 1.0 - (jagged_rows / max(num_rows, 1)))
+
+        score = round(col_shift_penalty * empty_penalty * jagged_penalty, 4)
+        needs_repair = (score < self.repair_threshold) or is_column_shifted
+
+        return TableHealthReport(
+            table_id=table_id,
+            health_score=score,
+            needs_repair=needs_repair,
+            metrics={
+                "empty_cell_ratio": round(empty_cell_ratio, 4),
+                "is_column_shifted": 1.0 if is_column_shifted else 0.0,
+                "first_col_avg_len": round(col_avg_lens[0], 2) if col_avg_lens else 0.0,
+                "last_col_avg_len": round(col_avg_lens[-1], 2) if col_avg_lens else 0.0,
+            },
+            issues=issues,
+        )
+

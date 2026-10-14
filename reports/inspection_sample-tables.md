@@ -11,9 +11,10 @@
   - [H1] Table 27: "table" with columns simulated by using tab stops
   - [H1] Table 28: year-end financial table (£, thousands) - headings problem revisited
 
-## 2. Extracted & Normalized Tables
+## 2. Extracted & Normalized Tables (with Health Diagnostics)
 ### Table 1: Table 1
 - **Table ID**: `b_1`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (No preceding prose)
 - **Rows**: 2 | **Columns** (3): `['Column header (TH)', 'Column header (TH)', 'Column header (TH)']`
@@ -29,6 +30,7 @@
 
 ### Table 2: Table 2: example of footnotes referenced from within a table
 - **Table ID**: `b_3`
+- **Structural Health**: **0.73 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_2`)
 - **Rows**: 7 | **Columns** (4): `['Expenditure by function £ million', 'Expenditure by function £ million', '2009/10', '2010/11 1']`
@@ -49,6 +51,7 @@
 
 ### Table 3: Table 3: "film credits" style layout
 - **Table ID**: `b_8`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_7`)
 - **Rows**: 5 | **Columns** (2): `['Main character', 'Daniel Radcliffe']`
@@ -67,6 +70,7 @@
 
 ### Table 4: Untitled Table
 - **Table ID**: `b_11`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_10`)
 - **Rows**: 6 | **Columns** (2): `['Role', 'Actor']`
@@ -84,6 +88,7 @@
 
 ### Table 5: Untitled Table
 - **Table ID**: `b_13`
+- **Structural Health**: **0.72 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_12`)
 - **Rows**: 8 | **Columns** (4): `['', '2010', '2009', '2008']`
@@ -103,6 +108,7 @@
 
 ### Table 6: Untitled Table
 - **Table ID**: `b_15`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_14`)
 - **Rows**: 8 | **Columns** (5): `['Rainfall (inches)', 'Americas', 'Asia', 'Europe', 'Africa']`
@@ -122,6 +128,7 @@
 
 ### Table 7: Untitled Table
 - **Table ID**: `b_16`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_14`)
 - **Rows**: 3 | **Columns** (4): `['Non-current assets', '2010', '2009', '2008']`
@@ -136,6 +143,7 @@
 
 ### Table 8: Untitled Table
 - **Table ID**: `b_18`
+- **Structural Health**: **0.75 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_17`)
 - **Rows**: 3 | **Columns** (4): `['Current assets', '2010', '2009', '2008']`
@@ -150,6 +158,7 @@
 
 ### Table 9: Untitled Table
 - **Table ID**: `b_20`
+- **Structural Health**: **0.90 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_19`)
 - **Rows**: 3 | **Columns** (5): `['Rainfall (inches)', 'Americas', 'Asia', 'Europe', 'Africa']`
@@ -164,6 +173,8 @@
 
 ### Table 10: Table 10: self-contained year-end statement (£, thousands) (multiple layout problems)
 - **Table ID**: `b_21`
+- **Structural Health**: **0.26 / 1.0** (⚠️ REPAIR REQUIRED)
+  - 🚩 *High empty cell ratio detected (49.2%).*
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_19`)
 - **Rows**: 13 | **Columns** (5): `['', '2011', '2011', '2010 restated', '2010 restated']`
@@ -186,6 +197,7 @@
 
 ### Table 11: Table 11: self-contained year-end statement (£, thousands) (multiple problems resolved)
 - **Table ID**: `b_23`
+- **Structural Health**: **0.76 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_22`)
 - **Rows**: 11 | **Columns** (4): `['', '', '2011', '2010 restated']`
@@ -208,6 +220,7 @@
 
 ### Table 12: Table 12: merged data cells are not recommended
 - **Table ID**: `b_25`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_24`)
 - **Rows**: 3 | **Columns** (5): `['Name', '2008.Yes', '2008.No', '2009.Yes', '2009.No']`
@@ -224,6 +237,7 @@
 
 ### Table 13: Table 13: use of graphic symbols
 - **Table ID**: `b_27`
+- **Structural Health**: **0.88 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_26`)
 - **Rows**: 3 | **Columns** (4): `['Question', 'Respondent A', 'Respondent B', 'Respondent C']`
@@ -240,6 +254,8 @@
 
 ### Table 14: Table 14: symbols replaced by real text
 - **Table ID**: `b_29`
+- **Structural Health**: **0.44 / 1.0** (⚠️ REPAIR REQUIRED)
+  - 🚩 *Column alignment skew detected: Column 1 consists of short boolean answers while Column 4 contains long descriptive text (avg len: 26.0).*
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_28`)
 - **Rows**: 3 | **Columns** (4): `['Question', 'Respondent A', 'Respondent B', 'Respondent C']`
@@ -256,6 +272,7 @@
 
 ### Table 15: Table 15: courses offered by Institution X. A = Bachelor of Science, B = Bachelor of Arts, C = Masters, D = Doctorate, E = Diploma
 - **Table ID**: `b_31`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_30`)
 - **Rows**: 6 | **Columns** (5): `['', '2006', '2007', '2008', '2009']`
@@ -275,6 +292,7 @@
 
 ### Table 16: Table 16: Masters courses offered by Institution X
 - **Table ID**: `b_33`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_32`)
 - **Rows**: 6 | **Columns** (5): `['', '2006', '2007', '2008', '2009']`
@@ -294,6 +312,7 @@
 
 ### Table 17: Table 17: accounts, 2011 (£, thousands)
 - **Table ID**: `b_35`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_34`)
 - **Rows**: 10 | **Columns** (2): `['Accounting item', '2011']`
@@ -317,6 +336,7 @@
 
 ### Table 18: Table 18: accounts, 2011 (£, thousands)
 - **Table ID**: `b_37`
+- **Structural Health**: **0.70 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_36`)
 - **Rows**: 10 | **Columns** (3): `['Accounting item', 'Accounting item', '2011']`
@@ -340,6 +360,7 @@
 
 ### Table 19: Untitled Table
 - **Table ID**: `b_41`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (No preceding prose)
 - **Rows**: 5 | **Columns** (5): `['Country', '1980', '1990', '2000', '2010']`
@@ -356,6 +377,7 @@
 
 ### Table 20: Table 20: footnotes referenced from within a table
 - **Table ID**: `b_42`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (No preceding prose)
 - **Rows**: 7 | **Columns** (4): `['Expenditure by function £million', 'Expenditure by function £million', '2009/10', '2010/11 1']`
@@ -377,6 +399,7 @@
 
 ### Table 21: Table 21: footnotes replaced by additional table summary text
 - **Table ID**: `b_47`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (Linked to prose: `b_46`)
 - **Rows**: 7 | **Columns** (4): `['Expenditure by function £million', 'Expenditure by function £million', '2009/10', '2010/11']`
@@ -398,6 +421,7 @@
 
 ### Table 22: Table 22: referencing multiple endnotes from within a table
 - **Table ID**: `b_49`
+- **Structural Health**: **0.84 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (Linked to prose: `b_48`)
 - **Rows**: 7 | **Columns** (4): `['Expenditure £m', 'Notes', '2010', '2011']`
@@ -418,6 +442,7 @@
 
 ### Table 23: Table 23: simulated table created using tabs and containing no structure
 - **Table ID**: `b_51`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (Linked to prose: `b_50`)
 - **Rows**: 2 | **Columns** (5): `['Name', '2008.Entered', '2008.Completed', '2009.Entered', '2009.Completed']`
@@ -433,6 +458,7 @@
 
 ### Table 24: Table 24: year-end financial statement (£, thousands)
 - **Table ID**: `b_53`
+- **Structural Health**: **0.72 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (Linked to prose: `b_52`)
 - **Rows**: 12 | **Columns** (4): `['', '2010', '2009', '2008']`
@@ -458,6 +484,7 @@
 
 ### Table 25: Table 25: setting column and row scope via the tags panel
 - **Table ID**: `b_55`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (Linked to prose: `b_54`)
 - **Rows**: 3 | **Columns** (5): `['Name', '2008.Entered', '2008.Won', '2009.Entered', '2009.Won']`
@@ -474,6 +501,7 @@
 
 ### Table 26: Table 26: courses offered by Institution X. A = Bachelor of Science, B = Bachelor of Arts, C = Masters, D = Doctorate, E = Diploma
 - **Table ID**: `b_57`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > trends, 1980 to 2010. Source: Barro-Lee March, 2010`
 - **Prose Link**: (Linked to prose: `b_56`)
 - **Rows**: 6 | **Columns** (5): `['', '2006', '2007', '2008', '2009']`
@@ -493,6 +521,7 @@
 
 ### Table 27: Untitled Table
 - **Table ID**: `b_60`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Table 27: "table" with columns simulated by using tab stops`
 - **Prose Link**: (No preceding prose)
 - **Rows**: 3 | **Columns** (3): `['Name', 'Apples', 'Pears']`
@@ -507,6 +536,7 @@
 
 ### Table 28: Untitled Table
 - **Table ID**: `b_62`
+- **Structural Health**: **0.72 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Table 28: year-end financial table (£, thousands) - headings problem revisited`
 - **Prose Link**: (No preceding prose)
 - **Rows**: 12 | **Columns** (4): `['', '2010', '2009', '2008']`
@@ -530,6 +560,7 @@
 
 ### Table 29: Untitled Table
 - **Table ID**: `b_64`
+- **Structural Health**: **1.00 / 1.0** (✅ Healthy)
 - **Section Path**: `sample-tables.pdf > Table 28: year-end financial table (£, thousands) - headings problem revisited`
 - **Prose Link**: (Linked to prose: `b_63`)
 - **Rows**: 12 | **Columns** (5): `['', 'South America', 'Asia', 'Africa', 'Australia']`

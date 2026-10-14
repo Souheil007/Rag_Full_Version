@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.ingestion.layout_parser import LayoutParser
 from src.ingestion.doc_tree import BlockType
+from src.ingestion.quality_scorer import TableSanityChecker
 from src.chunking.block_chunker import BlockChunker
 from src.retrieval.hit_collapser import HitCollapser
 
@@ -42,9 +43,9 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
         for w in report.warnings:
             print(f"      - {w}")
 
-    # 2. Document Tree Structure
+    # 2. Document Tree Structure & Table Sanity Check
     print("\n" + "=" * 80)
-    print("🌳 Step 2: Extracted Document AST Tree Hierarchy")
+    print("🌳 Step 2: Extracted Document AST Tree & Table Health Scoring")
     print("=" * 80)
 
     sections = tree.get_nodes_by_type(BlockType.SECTION)
@@ -63,18 +64,31 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             indent = "  " * s.level
             print(f"{indent}└─ [H{s.level}] {s.content}")
 
+    table_checker = TableSanityChecker(repair_threshold=0.70)
+    table_health_reports = {}
+
     if tables:
-        print("\n📊 Detected Tables & Normalization:")
+        print("\n📊 Detected Tables, Health Diagnostic & Alignment Check:")
         for idx, t in enumerate(tables, 1):
             t_meta = t.table_metadata or {}
             headers = t_meta.get("headers", [])
-            total_rows = t_meta.get("total_rows", len(t_meta.get("rows", [])))
+            rows = t_meta.get("rows", [])
+            total_rows = t_meta.get("total_rows", len(rows))
             caption = t_meta.get("caption") or t.metadata.get("caption", "Untitled Table")
             prose_link = f"(Linked to prose: {t.preceding_prose_id})" if t.preceding_prose_id else "(No preceding prose)"
-            print(f"  • Table {idx}: '{caption}' {prose_link}")
+
+            # Run automated table sanity check
+            h_report = table_checker.evaluate_table(table_id=t.id, headers=headers, rows=rows)
+            table_health_reports[t.id] = h_report
+
+            status_symbol = "⚠️ REPAIR REQUIRED" if h_report.needs_repair else "✅ Healthy"
+            print(f"  • Table {idx}: '{caption}' | Health: {h_report.health_score:.2f} [{status_symbol}]")
+            print(f"    - ID: `{t.id}` | Prose: {prose_link}")
             print(f"    - Columns ({len(headers)}): {headers}")
             print(f"    - Total Rows: {total_rows}")
-            print(f"    - Section Path: {' > '.join(t.section_path)}")
+            if h_report.issues:
+                for issue in h_report.issues:
+                    print(f"      🚩 Issue: {issue}")
 
     # 3. Block-Type Chunking
     print("\n" + "=" * 80)
@@ -179,15 +193,23 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
     for s in sections:
         report_lines.append(f"{'  ' * s.level}- [H{s.level}] {s.content}")
 
-    report_lines.extend(["", "## 2. Extracted & Normalized Tables"])
+    report_lines.extend(["", "## 2. Extracted & Normalized Tables (with Health Diagnostics)"])
     for idx, t in enumerate(tables, 1):
         t_meta = t.table_metadata or {}
         headers = t_meta.get("headers", [])
         total_rows = t_meta.get("total_rows", len(t_meta.get("rows", [])))
         caption = t_meta.get("caption") or t.metadata.get("caption", "Untitled Table")
         prose_link = f"(Linked to prose: `{t.preceding_prose_id}`)" if t.preceding_prose_id else "(No preceding prose)"
+        h_rep = table_health_reports.get(t.id)
+
         report_lines.append(f"### Table {idx}: {caption}")
         report_lines.append(f"- **Table ID**: `{t.id}`")
+        if h_rep:
+            health_str = f"**{h_rep.health_score:.2f} / 1.0** ({'⚠️ REPAIR REQUIRED' if h_rep.needs_repair else '✅ Healthy'})"
+            report_lines.append(f"- **Structural Health**: {health_str}")
+            if h_rep.issues:
+                for issue in h_rep.issues:
+                    report_lines.append(f"  - 🚩 *{issue}*")
         report_lines.append(f"- **Section Path**: `{' > '.join(t.section_path)}`")
         report_lines.append(f"- **Prose Link**: {prose_link}")
         report_lines.append(f"- **Rows**: {total_rows} | **Columns** ({len(headers)}): `{headers}`")

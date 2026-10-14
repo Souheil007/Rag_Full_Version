@@ -226,15 +226,17 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             for f in files:
                 tree, _ = parser.parse_file(str(f))
                 payloads = b_chunker.chunk_tree(tree)
+                doc_prefix = f.stem
                 for p in payloads:
+                    scoped_chunk_id = f"{doc_prefix}_{p.chunk_id}"
                     chunks.append({
-                        "chunk_id": p.chunk_id,
+                        "chunk_id": scoped_chunk_id,
                         "chunk_text": p.content_for_embedding,
                         "content_for_generation": p.content_for_generation,
                         "source": str(f.resolve()),
                         "metadata": {
                             **p.metadata,
-                            "chunk_id": p.chunk_id,
+                            "chunk_id": scoped_chunk_id,
                             "block_type": p.block_type.value,
                             "source": str(f.resolve()),
                             "content_for_generation": p.content_for_generation,
