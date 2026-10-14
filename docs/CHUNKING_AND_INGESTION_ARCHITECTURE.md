@@ -92,7 +92,7 @@ Clean, structured Markdown tables for generator comprehension:
 ### Stage 7: Runtime Retrieval & Hit Collapsing (`src/retrieval/hit_collapser.py`)
 - **Sibling Hit Deduplication**: If multiple retrieved hits belong to different parts of the same table (`table_id`), they are collapsed into a single consolidated table reference.
 - **Context Stitching ("Story Enrichment")**: Automatically pulls the table's introductory paragraph (`preceding_prose_id`) and places it immediately above the table in the LLM prompt.
-- **Token Budget Manager**: Caps table token usage (default 2,000 tokens). Expands small tables to full atomic Markdown, and large tables to retrieved rows $\pm 2$ neighbor rows + schema headers.
+- **Token Budget Manager**: Caps table token usage (default 2,500 tokens; 4,000 total prompt ceiling). Expands small tables to full atomic Markdown, and large tables to retrieved rows $\pm 2$ neighbor rows + schema headers. See the dedicated [Token Budget & Context Management Guide](docs/TOKEN_BUDGET_AND_CONTEXT_MANAGEMENT.md) for deep-dive analysis.
 
 ---
 

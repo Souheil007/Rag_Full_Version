@@ -347,6 +347,7 @@ pytest -v
 ## 📚 In-Depth Documentation
 
 * [**Chunking & Ingestion Architecture Guide**](docs/CHUNKING_AND_INGESTION_ARCHITECTURE.md): Comprehensive 7-stage guide on Docling AST layout parsing, TableSanityChecker, Pixtral VLM repair, block-type chunking, dual serialization, and runtime hit collapsing.
+* [**Token Budget & Context Window Management Guide**](docs/TOKEN_BUDGET_AND_CONTEXT_MANAGEMENT.md): Multi-tier token hierarchy, embedding truncation protection, dynamic row windowing, and prompt budget enforcement.
 * [**Docling vs. Mistral OCR & Vision LLMs**](docs/DOCLING_VS_MISTRAL_OCR.md): In-depth comparison of multi-model layout engines vs. end-to-end vision models, pricing economics ($0.00 vs. $4/1k pages), and the 95/5 hybrid production pattern.
 * [**Guardrails & Hallucination Prevention Guide**](docs/GUARDRAILS_AND_FALLBACK_GUIDE.md): 3-tier guardrail architecture using Jev discriminative entailment, regex citation bounds verification, fallback trigger mechanics, and zero-downtime execution.
 * [**Retrieval Metrics and Scoring Guide**](docs/RETRIEVAL_METRICS_AND_SCORES.md): Complete breakdown of `distance`, `score`, `bm25_score`, `rrf_score`, and `rerank_score`, including mathematical formulas, healthy ranges, and real-world interpretations.
