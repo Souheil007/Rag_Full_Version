@@ -139,7 +139,43 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             print("-" * 50)
             print(collapsed.formatted_prompt_context[:800] + ("\n... [truncated]" if len(collapsed.formatted_prompt_context) > 800 else ""))
 
+    # 5. Save detailed markdown report to file
+    report_dir = Path("reports")
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_file = report_dir / f"inspection_{path.stem}.md"
+
+    report_lines = [
+        f"# Ingestion & Chunking Inspection: {path.name}",
+        f"- **File Path**: `{path.resolve()}`",
+        f"- **Engine**: `{tree.root.metadata.get('parser_engine', 'docling')}`",
+        f"- **Quality Score ($Q_{{score}}$)**: **{report.score:.3f} / 1.0** ({'Acceptable' if report.is_acceptable else 'Degraded'})",
+        f"- **Structural Blocks**: {len(sections)} sections, {len(tables)} tables, {len(paragraphs)} paragraphs",
+        f"- **Total Chunks Generated**: {len(chunks)} ({len(table_chunks)} table chunks, {len(prose_chunks)} prose chunks)",
+        "",
+        "## 1. Detected Sections",
+    ]
+    for s in sections:
+        report_lines.append(f"{'  ' * s.level}- [H{s.level}] {s.content}")
+
+    report_lines.extend(["", "## 2. Extracted & Normalized Tables"])
+    for idx, t in enumerate(tables, 1):
+        t_meta = t.table_metadata or {}
+        headers = t_meta.get("headers", [])
+        total_rows = t_meta.get("total_rows", len(t_meta.get("rows", [])))
+        caption = t_meta.get("caption") or t.metadata.get("caption", "Untitled Table")
+        prose_link = f"(Linked to prose: `{t.preceding_prose_id}`)" if t.preceding_prose_id else "(No preceding prose)"
+        report_lines.append(f"### Table {idx}: {caption}")
+        report_lines.append(f"- **Section Path**: `{' > '.join(t.section_path)}`")
+        report_lines.append(f"- **Prose Link**: {prose_link}")
+        report_lines.append(f"- **Rows**: {total_rows} | **Columns** ({len(headers)}): `{headers}`")
+        report_lines.append("\n**Markdown Preview:**\n")
+        report_lines.append(t.content[:500] + ("\n..." if len(t.content) > 500 else ""))
+        report_lines.append("")
+
+    report_file.write_text("\n".join(report_lines), encoding="utf-8")
+
     print("\n" + "=" * 80)
+    print(f"💾 Full Inspection Report Saved To: {report_file.resolve()}")
     print("🎉 Chunking & Ingestion Inspection Finished Successfully!")
     print("=" * 80)
 
