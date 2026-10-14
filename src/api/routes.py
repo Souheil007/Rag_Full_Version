@@ -22,9 +22,11 @@ from src.prompts.prompt_templates import (
     DEFAULT_RAG_SYSTEM_PROMPT,
     format_rag_prompt,
 )
+from pathlib import Path
 from src.retrieval.bm25_retriever import BM25Retriever
 from src.retrieval.reranker import Reranker
 from src.retrieval.retriever import Retriever
+from src.retrieval.hit_collapser import HitCollapser
 from src.utils.helpers import get_logger, load_config
 from src.vectordb.vector_store import VectorStore
 
@@ -179,6 +181,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         reasoning_model=router_cfg.get("reasoning_model", "mistral-large-latest"),
     )
     profiler = PipelineProfiler(metrics_collector=metrics)
+    hit_collapser = HitCollapser()
 
     @app.get("/health")
     def health_check() -> dict[str, str]:
@@ -201,14 +204,53 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     @app.post("/index", response_model=dict[str, Any])
     def index_directory(req: IndexDirectoryRequest) -> dict[str, Any]:
         """Load, chunk, embed, and index documents for dense and BM25 search."""
-        docs = loader.load_directory(req.dir_path)
-        if not docs:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No valid documents found in {req.dir_path}",
-            )
+        use_docling = cfg.get("ingestion", {}).get("use_docling", True)
+        dir_p = Path(req.dir_path)
 
-        chunks = chunker.chunk_documents(docs)
+        if use_docling:
+            from src.ingestion.layout_parser import LayoutParser
+            from src.chunking.block_chunker import BlockChunker
+
+            parser = LayoutParser(quality_threshold=cfg.get("ingestion", {}).get("quality_threshold", 0.65))
+            b_chunker = BlockChunker()
+            supported = cfg.get("ingestion", {}).get("supported_extensions", [".pdf", ".docx", ".txt", ".md", ".csv"])
+
+            files = [f for f in dir_p.rglob("*") if f.is_file() and f.suffix.lower() in supported]
+            if not files:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No valid documents found in {req.dir_path}",
+                )
+
+            chunks = []
+            for f in files:
+                tree, _ = parser.parse_file(str(f))
+                payloads = b_chunker.chunk_tree(tree)
+                for p in payloads:
+                    chunks.append({
+                        "chunk_id": p.chunk_id,
+                        "chunk_text": p.content_for_embedding,
+                        "content_for_generation": p.content_for_generation,
+                        "source": str(f.resolve()),
+                        "metadata": {
+                            **p.metadata,
+                            "chunk_id": p.chunk_id,
+                            "block_type": p.block_type.value,
+                            "source": str(f.resolve()),
+                            "content_for_generation": p.content_for_generation,
+                        },
+                    })
+            num_docs = len(files)
+        else:
+            docs = loader.load_directory(req.dir_path)
+            if not docs:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No valid documents found in {req.dir_path}",
+                )
+            chunks = chunker.chunk_documents(docs)
+            num_docs = len(docs)
+
         texts = [c["chunk_text"] for c in chunks]
         embeddings = embedder.embed_batch(texts)
 
@@ -218,7 +260,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
         return {
             "status": "success",
-            "indexed_documents": len(docs),
+            "indexed_documents": num_docs,
             "indexed_chunks": len(chunks),
         }
 
@@ -318,7 +360,17 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             # 2. Prompt Formatting Span
             with root_trace.span("prompt_formatting") as s_fmt:
                 s_fmt.set_input({"query": req.query, "chunks_retrieved": len(retrieved_docs)})
-                prompt = format_rag_prompt(req.query, retrieved_docs)
+                if any(d.get("metadata", {}).get("table_id") or d.get("metadata", {}).get("content_for_generation") for d in retrieved_docs):
+                    collapsed = hit_collapser.collapse_hits(retrieved_docs)
+                    collapsed_docs = [
+                        {
+                            "chunk_text": collapsed.formatted_prompt_context,
+                            "metadata": {"source": "dedup_context"},
+                        }
+                    ]
+                    prompt = format_rag_prompt(req.query, collapsed_docs)
+                else:
+                    prompt = format_rag_prompt(req.query, retrieved_docs)
                 s_fmt.set_output({"prompt_length": len(prompt)})
 
             # 3. LLM Generation Span
