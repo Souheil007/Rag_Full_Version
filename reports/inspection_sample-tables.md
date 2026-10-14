@@ -175,24 +175,27 @@
 - **Table ID**: `b_21`
 - **Structural Health**: **0.26 / 1.0** (⚠️ REPAIR REQUIRED)
   - 🚩 *High empty cell ratio detected (49.2%).*
+- **VLM Repair**: ✨ REPAIRED — Successfully repaired table using Mistral Pixtral VLM.
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_19`)
-- **Rows**: 13 | **Columns** (5): `['', '2011', '2011', '2010 restated', '2010 restated']`
+- **Rows**: 13 | **Columns** (3): `['', '2011', '2010 restated']`
 
 **Markdown Preview:**
 
 **Table 10: self-contained year-end statement (£, thousands) (multiple layout problems)**
 
-|  | 2011 | 2011 | 2010 restated | 2010 restated |
-| --- | --- | --- | --- | --- |
-| General income |  | 250,000 |  | 200,000 |
-| Increase in value, WIP |  | 15,000 |  | 30,000 |
-|  |  | 265,000 |  | 230,000 |
-| Administrative costs |  |  |  |  |
-| Staff costs | (200,000) |  | (150,000) |  |
-| Early departures | (10,000) |  | (20,000) |  |
-| Other | (25,000) |  | (10,000) |  |
-| Depreciation | (10,000) |  
+|  | 2011 | 2010 restated |
+| --- | --- | --- |
+| **General income** | 250,000 | 200,000 |
+| **Increase in value, WIP** | 15,000 | 30,000 |
+|  | 265,000 | 230,000 |
+| **Administrative costs** |  |  |
+| - Staff costs | (200,000) | (150,000) |
+| - Early departures | (10,000) | (20,000) |
+| - Other | (25,000) | (10,000) |
+| - Depreciation | (10,000) | (10,000) |
+| **Programme costs** |  |  |
+| - Impairment lo
 ...
 
 ### Table 11: Table 11: self-contained year-end statement (£, thousands) (multiple problems resolved)
@@ -256,6 +259,7 @@
 - **Table ID**: `b_29`
 - **Structural Health**: **0.44 / 1.0** (⚠️ REPAIR REQUIRED)
   - 🚩 *Column alignment skew detected: Column 1 consists of short boolean answers while Column 4 contains long descriptive text (avg len: 26.0).*
+- **VLM Repair**: ✨ REPAIRED — Successfully repaired table using Mistral Pixtral VLM.
 - **Section Path**: `sample-tables.pdf > Design and build accessible PDF tables Sample tables`
 - **Prose Link**: (Linked to prose: `b_28`)
 - **Rows**: 3 | **Columns** (4): `['Question', 'Respondent A', 'Respondent B', 'Respondent C']`
@@ -266,9 +270,9 @@
 
 | Question | Respondent A | Respondent B | Respondent C |
 | --- | --- | --- | --- |
-| No | Yes | No | Are you a UK citizen? |
-| Yes | No | Yes | Are you currently employed? |
-| No |  | No Yes | Do you have a driving licence? |
+| Are you a UK citizen? | No | Yes | No |
+| Are you currently employed? | Yes | No | Yes |
+| Do you have a driving licence? | No | No | Yes |
 
 ### Table 15: Table 15: courses offered by Institution X. A = Bachelor of Science, B = Bachelor of Arts, C = Masters, D = Doctorate, E = Diploma
 - **Table ID**: `b_31`
@@ -1096,18 +1100,17 @@ Row 3: Rainfall (inches): 12 hour high; Americas: 11; Asia: 12; Europe: 13; Afri
 ```text
 Section: sample-tables.pdf > Design and build accessible PDF tables Sample tables
 Table Title: Table 10: self-contained year-end statement (£, thousands) (multiple layout problems)
-Row 1: : General income; 2011: 250,000; 2010 restated: 200,000
-Row 2: : Increase in value, WIP; 2011: 15,000; 2010 restated: 30,000
+Row 1: : **General income**; 2011: 250,000; 2010 restated: 200,000
+Row 2: : **Increase in value, WIP**; 2011: 15,000; 2010 restated: 30,000
 Row 3: 2011: 265,000; 2010 restated: 230,000
-Row 4: : Administrative costs
-Row 5: : Staff costs; 2011: (200,000); 2010 restated: (150,000)
-Row 6: : Early departures; 2011: (10,000); 2010 restated: (20,000)
-Row 7: : Other; 2011: (25,000); 2010 restated: (10,000)
-Row 8: : Depreciation; 2011: (10,000); 2010 restated: (10,000)
-Row 9: : Programme costs
-Row 10: : Impairment loss; 2011: (10,000); 2010 restated: (5,000)
-Row 11: : Other; 2011: (5,000); 2010 restated: (5,000)
-Row 12: 2011: (2
+Row 4: : **Administrative costs**
+Row 5: : - Staff costs; 2011: (200,000); 2010 restated: (150,000)
+Row 6: : - Early departures; 2011: (10,000); 2010 restated: (20,000)
+Row 7: : - Other; 2011: (25,000); 2010 restated: (10,000)
+Row 8: : - Depreciation; 2011: (10,000); 2010 restated: (10,000)
+Row 9: : **Programme costs**
+Row 10: : - Impairment loss; 2011: (10,000); 2010 restated: (5,000)
+Row 11: : - Other; 2011: (5,000); 2010 restat
 ... [truncated]
 ```
 
@@ -1115,21 +1118,21 @@ Row 12: 2011: (2
 
 **Table 10: self-contained year-end statement (£, thousands) (multiple layout problems)**
 
-|  | 2011 | 2011 | 2010 restated | 2010 restated |
-| --- | --- | --- | --- | --- |
-| General income |  | 250,000 |  | 200,000 |
-| Increase in value, WIP |  | 15,000 |  | 30,000 |
-|  |  | 265,000 |  | 230,000 |
-| Administrative costs |  |  |  |  |
-| Staff costs | (200,000) |  | (150,000) |  |
-| Early departures | (10,000) |  | (20,000) |  |
-| Other | (25,000) |  | (10,000) |  |
-| Depreciation | (10,000) |  | (10,000) |  |
-| Programme costs |  |  |  |  |
-| Impairment loss | (10,000) |  | (5,000) |  |
-| Other | (5,000) |  | (5,000) |  |
-|  | (260,000) |  | (200,000) |  |
-| Surplus |  | 5,000 |  | 30,000 |
+|  | 2011 | 2010 restated |
+| --- | --- | --- |
+| **General income** | 250,000 | 200,000 |
+| **Increase in value, WIP** | 15,000 | 30,000 |
+|  | 265,000 | 230,000 |
+| **Administrative costs** |  |  |
+| - Staff costs | (200,000) | (150,000) |
+| - Early departures | (10,000) | (20,000) |
+| - Other | (25,000) | (10,000) |
+| - Depreciation | (10,000) | (10,000) |
+| **Programme costs** |  |  |
+| - Impairment loss | (10,000) | (5,000) |
+| - Other | (5,000) | (5,000) |
+|  | (260,000) | (200,000) |
+| **Surplus** | 5,000 | 30,000 |
 
 ---
 
@@ -1303,9 +1306,9 @@ Table 13: use of graphic symbols
 ```text
 Section: sample-tables.pdf > Design and build accessible PDF tables Sample tables
 Table Title: Table 14: symbols replaced by real text
-Row 1: Question: No; Respondent A: Yes; Respondent B: No; Respondent C: Are you a UK citizen?
-Row 2: Question: Yes; Respondent A: No; Respondent B: Yes; Respondent C: Are you currently employed?
-Row 3: Question: No; Respondent B: No Yes; Respondent C: Do you have a driving licence?
+Row 1: Question: Are you a UK citizen?; Respondent A: No; Respondent B: Yes; Respondent C: No
+Row 2: Question: Are you currently employed?; Respondent A: Yes; Respondent B: No; Respondent C: Yes
+Row 3: Question: Do you have a driving licence?; Respondent A: No; Respondent B: No; Respondent C: Yes
 ```
 
 #### [B] Content for LLM Context Generation:
@@ -1314,9 +1317,9 @@ Row 3: Question: No; Respondent B: No Yes; Respondent C: Do you have a driving l
 
 | Question | Respondent A | Respondent B | Respondent C |
 | --- | --- | --- | --- |
-| No | Yes | No | Are you a UK citizen? |
-| Yes | No | Yes | Are you currently employed? |
-| No |  | No Yes | Do you have a driving licence? |
+| Are you a UK citizen? | No | Yes | No |
+| Are you currently employed? | Yes | No | Yes |
+| Do you have a driving licence? | No | No | Yes |
 
 ---
 

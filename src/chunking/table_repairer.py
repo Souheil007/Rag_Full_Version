@@ -123,36 +123,55 @@ class TableRepairer:
 
             client = Mistral(api_key=api_key)
 
-            # If PDF path provided, render the specific page containing this table
             page_no = 1
             if node.metadata and "page" in node.metadata:
                 page_no = int(node.metadata["page"])
 
-            # Call Mistral OCR process on target document/page
+            caption = node.metadata.get("caption") or (node.table_metadata or {}).get("caption", "")
+
+            # If PDF path provided, render the specific page containing this table
             if pdf_path and Path(pdf_path).exists():
                 import base64
+                import io
+                import pypdfium2 as pdfium
 
-                with open(pdf_path, "rb") as f:
-                    file_b64 = base64.b64encode(f.read()).decode("utf-8")
+                pdf = pdfium.PdfDocument(str(pdf_path))
+                target_page_idx = min(max(0, page_no - 1), len(pdf) - 1)
+                page = pdf[target_page_idx]
+                pil_image = page.render(scale=2).to_pil()
 
-                ocr_resp = client.ocr.process(
-                    model="mistral-ocr-latest",
-                    document={
-                        "type": "document_base64",
-                        "document_base64": file_b64,
-                    },
-                    pages=[page_no - 1],  # 0-indexed in Mistral API
-                    table_format="markdown",
+                buf = io.BytesIO()
+                pil_image.save(buf, format="JPEG", quality=85)
+                b64_image = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+                # Prompt Pixtral-12b-2409 to transcribe the exact visual table
+                table_hint = f"titled '{caption}'" if caption else f"ID '{node.id}'"
+                prompt_text = (
+                    f"Carefully extract the table {table_hint} from this document page image. "
+                    "Ensure that question/category text is in the correct column (usually column 1), "
+                    "and that response answers (e.g. Yes/No/numbers) align with their respective respondent/year columns. "
+                    "Output ONLY the markdown table, without commentary."
                 )
 
-                if ocr_resp and ocr_resp.pages:
-                    md_text = ocr_resp.pages[0].markdown
-                    # Extract the Markdown table from OCR page response
-                    headers, rows = TableParser.parse_markdown_table(md_text)
+                response = client.chat.complete(
+                    model="pixtral-12b-2409",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_text},
+                            {"type": "image_url", "image_url": f"data:image/jpeg;base64,{b64_image}"},
+                        ],
+                    }],
+                )
+
+                if response and response.choices:
+                    raw_text = response.choices[0].message.content or ""
+                    # Parse the Markdown table from Pixtral response
+                    headers, rows = TableParser.parse_markdown_table(raw_text)
                     if headers and rows:
                         norm_table = NormalizedTable(
                             table_id=node.id,
-                            caption=node.metadata.get("caption", ""),
+                            caption=caption,
                             headers=headers,
                             rows=rows,
                             page_numbers=[page_no],
@@ -161,27 +180,26 @@ class TableRepairer:
                         return RepairResult(
                             table_id=node.id,
                             repaired=True,
-                            method="mistral_ocr",
+                            method="pixtral_vlm",
                             new_markdown=clean_md,
                             new_headers=headers,
                             new_rows=rows,
-                            reason="Successfully repaired table using Mistral OCR.",
+                            reason="Successfully repaired table using Mistral Pixtral VLM.",
                         )
 
             return RepairResult(
                 table_id=node.id,
                 repaired=False,
                 method="failed",
-                reason="Mistral OCR returned empty or unparseable grid for page.",
+                reason="Pixtral VLM returned empty or unparseable markdown grid.",
             )
 
         except Exception as exc:
             err_msg = str(exc)
-            # Flag rate limits / quota issues cleanly without crashing
-            logger.warning("Mistral OCR call failed for %s: %s", node.id, err_msg)
+            logger.warning("Mistral VLM call failed for %s: %s", node.id, err_msg)
             return RepairResult(
                 table_id=node.id,
                 repaired=False,
                 method="failed",
-                reason=f"Mistral OCR error: {err_msg}",
+                reason=f"Mistral VLM error: {err_msg}",
             )

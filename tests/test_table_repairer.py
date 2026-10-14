@@ -44,8 +44,8 @@ def test_table_repairer_explicitly_flags_when_api_key_missing():
     assert "Skipping VLM repair" in res.reason
 
 
-def test_table_repairer_successful_mistral_ocr():
-    """Verify that successful Mistral OCR response updates table markdown and grid."""
+def test_table_repairer_successful_mistral_vlm():
+    """Verify that successful Pixtral VLM response updates table markdown and grid."""
     repairer = TableRepairer(provider="mistral")
 
     node = DocumentNode(
@@ -53,28 +53,36 @@ def test_table_repairer_successful_mistral_ocr():
         node_type=BlockType.TABLE,
         content="| Broken | Grid |",
         table_metadata={"headers": ["Broken", "Grid"], "rows": [["X", "Y"]]},
-        metadata={"page": 5},
+        metadata={"page": 5, "caption": "Table 14"},
     )
     health = TableHealthReport(table_id="tbl_damaged", health_score=0.40, needs_repair=True)
 
-    mock_ocr_page = MagicMock()
-    mock_ocr_page.markdown = "| Question | Respondent A |\n|---|---|\n| Are you a citizen? | Yes |"
+    mock_choice = MagicMock()
+    mock_choice.message.content = "| Question | Respondent A |\n|---|---|\n| Are you a citizen? | Yes |"
 
-    mock_ocr_resp = MagicMock()
-    mock_ocr_resp.pages = [mock_ocr_page]
+    mock_resp = MagicMock()
+    mock_resp.choices = [mock_choice]
 
     mock_client = MagicMock()
-    mock_client.ocr.process.return_value = mock_ocr_resp
+    mock_client.chat.complete.return_value = mock_resp
 
-    from unittest.mock import mock_open
+    mock_pil = MagicMock()
+    mock_pil.save = MagicMock()
+
+    mock_page = MagicMock()
+    mock_page.render.return_value.to_pil.return_value = mock_pil
+
+    mock_pdf = MagicMock()
+    mock_pdf.__len__.return_value = 10
+    mock_pdf.__getitem__.return_value = mock_page
 
     with patch.dict("os.environ", {"MISTRAL_API_KEY": "valid_key"}):
         with patch("mistralai.client.Mistral", return_value=mock_client):
             with patch("pathlib.Path.exists", return_value=True):
-                with patch("builtins.open", mock_open(read_data=b"%PDF-1.4 test")):
+                with patch("pypdfium2.PdfDocument", return_value=mock_pdf):
                     res = repairer.repair_table_node(node, pdf_path="dummy.pdf", health_report=health)
 
     assert res.repaired is True
-    assert res.method == "mistral_ocr"
+    assert res.method == "pixtral_vlm"
     assert res.new_headers == ["Question", "Respondent A"]
     assert res.new_rows == [["Are you a citizen?", "Yes"]]
