@@ -24,16 +24,20 @@ flowchart TD
         ES["Elasticsearch BM25"]
     end
 
-    subgraph Ingestion ["Ingestion Pipeline"]
+    subgraph Ingestion ["Decoupled Ingestion Pipeline"]
         Queue["Kafka Ingestion Queue"]
-        Workers["Chunking Workers"]
+        Parser["Docling Layout & VLM Workers"]
+        ASTCache[("Content-Addressed AST Cache<br/>(S3 / Blob Storage / Redis)")]
+        Workers["Chunking & Embedding Workers"]
     end
 
     LB --> Redis
     Redis --> Router
     Router --> Qdrant
     Router --> ES
-    Queue --> Workers
+    Queue --> Parser
+    Parser --> ASTCache
+    ASTCache --> Workers
     Workers --> Qdrant
     Workers --> ES
 ```
@@ -55,8 +59,13 @@ flowchart TD
    - Architectural Tradeoff: In-Memory Python BM25 vs. Persistent Inverted Indexes (SQLite FTS5, Tantivy, Qdrant/Weaviate Native Hybrid, Elasticsearch):
      - **The Bottleneck**: $O(N)$ RAM exhaustion, cold-start index wipe upon server restarts, and multi-worker process desynchronization (`uvicorn --workers N`).
      - **Production Evolution**: When to use embedded disk-backed engines (SQLite FTS5 / Tantivy) vs. native hybrid vector databases (Qdrant / Weaviate) vs. distributed clusters (Elasticsearch / OpenSearch).
-5. **`docs/INTERVIEW_CHEAT_SHEET.md`**
-   - Comprehensive answers and talking points for the top 10 senior AI engineer interview scenarios (including in-memory state scaling traps).
+5. **`docs/ADR/005_caching_per_page_ast_and_vlm.md`**
+   - Architectural Tradeoff: Monolithic Ingestion vs. Decoupled Content-Addressed AST/VLM Caching:
+     - **The Bottleneck**: Re-running 60–90s Docling OCR and VLM repair API calls every time chunk size, row grouping, or embedding models are tuned.
+     - **The Solution**: Content-addressed (SHA-256) per-page intermediate AST snapshots stored in object storage / disk cache. Decouples heavy document parsing from downstream chunking and dual serialization.
+     - **Production Benefits**: Zero-cost re-chunking experiments, idempotent uploads, and elimination of redundant VLM API costs.
+6. **`docs/INTERVIEW_CHEAT_SHEET.md`**
+   - Comprehensive answers and talking points for the top 10 senior AI engineer interview scenarios (including in-memory state scaling traps, decoupled AST caching, and table repair economics).
 
 ---
 
@@ -67,4 +76,6 @@ flowchart TD
 - [ ] Write `docs/ADR/002_scaling_at_100x.md`.
 - [ ] Write `docs/ADR/003_chunking_and_retrieval_tradeoffs.md`.
 - [ ] Write `docs/ADR/004_in_memory_vs_persistent_bm25.md`.
+- [ ] Write `docs/ADR/005_caching_per_page_ast_and_vlm.md`.
 - [ ] Write `docs/INTERVIEW_CHEAT_SHEET.md`.
+- [ ] Cross-link ADRs and Interview Cheat Sheet in `README.md`.
