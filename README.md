@@ -179,7 +179,8 @@ The repository follows a structured engineering roadmap detailed in the [`plans/
 | **[Plan 6](plans/plan6.md)** | **Observability & Sentry Error Monitoring** | ✅ Complete | End-to-end span tracing (`Tracer`), operational metrics (`MetricsCollector`), Langfuse observability, and Sentry APM error monitoring. |
 | **[Plan 4](plans/plan4.md)** | **Cost & Latency Optimization** | ✅ Complete | Semantic vector query cache ($0 repeat cost), query complexity router (Flash vs. Pro), and token/latency profiler. |
 | **[Plan 7](plans/plan7.md)** | **Complex Document Ingestion & Chunking** | ✅ Complete | Docling layout AST engine, TableSanityChecker, Pixtral VLM table repair fallback, dual serialization (KV & MD), and runtime HitCollapser. |
-| **[Plan 5](plans/plan5.md)** | **System Design & 100x Scaling (ADRs)** | ⏳ Pending | Architecture Decision Records (RAG vs. Fine-Tuning, 100x scale sharding), and Senior AI Interview Cheat Sheet. |
+| **[Plan 8](plans/plan8.md)** | **Advanced Table Health Verification** | ✅ Complete | Verbatim Source Grounding (lexical page matching via pypdfium2) and Pure Total Column Math Reconciliation (with accounting parentheses). |
+| **[Plan 5](plans/plan5.md)** | **System Design & 100x Scaling (ADRs)** | ⏳ Pending | Architecture Decision Records (RAG vs. Fine-Tuning, 100x scale sharding, decoupled AST caching), and Senior AI Interview Cheat Sheet. |
 
 
 

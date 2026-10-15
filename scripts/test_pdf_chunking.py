@@ -15,8 +15,8 @@ from src.chunking.table_repairer import TableRepairer
 from src.retrieval.hit_collapser import HitCollapser
 
 
-def test_pdf(file_path: str, query: str | None = None) -> None:
-    """Inspect and test Docling parsing and chunking on a local PDF document.
+def inspect_pdf(file_path: str, query: str | None = None) -> None:
+    """Inspect Docling parsing and chunking on a local PDF document.
 
     Args:
         file_path: Relative or absolute path to target PDF document.
@@ -80,8 +80,15 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             caption = t_meta.get("caption") or t.metadata.get("caption", "Untitled Table")
             prose_link = f"(Linked to prose: {t.preceding_prose_id})" if t.preceding_prose_id else "(No preceding prose)"
 
-            # Run automated table sanity check
-            h_report = table_checker.evaluate_table(table_id=t.id, headers=headers, rows=rows)
+            page_num = t.metadata.get("page", 1)
+            # Run automated table sanity check with verbatim grounding and pure totals
+            h_report = table_checker.evaluate_table(
+                table_id=t.id,
+                headers=headers,
+                rows=rows,
+                pdf_path=str(path),
+                page_number=page_num,
+            )
             table_health_reports[t.id] = h_report
 
             if h_report.needs_repair:
@@ -101,8 +108,10 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
             else:
                 status_symbol = "✅ Healthy"
 
+            math_info = "N/A (Bypassed)" if h_report.math_reconciled is None else ("✅ Match" if h_report.math_reconciled else "❌ Mismatch")
             print(f"  • Table {idx}: '{caption}' | Health: {h_report.health_score:.2f} [{status_symbol}]")
-            print(f"    - ID: `{t.id}` | Prose: {prose_link}")
+            print(f"    - ID: `{t.id}` | Prose: {prose_link} | Page: {page_num}")
+            print(f"    - Lexical Grounding: {h_report.grounding_ratio * 100:.1f}% | Pure Math: {math_info}")
             print(f"    - Columns ({len(headers)}): {headers}")
             print(f"    - Total Rows: {total_rows}")
             if h_report.issues:
@@ -227,7 +236,11 @@ def test_pdf(file_path: str, query: str | None = None) -> None:
         report_lines.append(f"### Table {idx}: {caption}")
         report_lines.append(f"- **Table ID**: `{t.id}`")
         if h_rep:
-            health_str = f"**{h_rep.health_score:.2f} / 1.0** ({'⚠️ REPAIR REQUIRED' if h_rep.needs_repair else '✅ Healthy'})"
+            math_diag = "Bypassed (Nested/None)" if h_rep.math_reconciled is None else ("✅ Reconciled" if h_rep.math_reconciled else "❌ Mismatch")
+            health_str = (
+                f"**{h_rep.health_score:.2f} / 1.0** ({'⚠️ REPAIR REQUIRED' if h_rep.needs_repair else '✅ Healthy'}) "
+                f"| Grounding: **{h_rep.grounding_ratio * 100:.1f}%** | Math: **{math_diag}**"
+            )
             report_lines.append(f"- **Structural Health**: {health_str}")
             if h_rep.issues:
                 for issue in h_rep.issues:
@@ -298,4 +311,4 @@ if __name__ == "__main__":
     cli_parser.add_argument("--query", "-q", help="Optional test question to simulate retrieval and hit collapse", default=None)
     args = cli_parser.parse_args()
 
-    test_pdf(args.file_path, query=args.query)
+    inspect_pdf(args.file_path, query=args.query)

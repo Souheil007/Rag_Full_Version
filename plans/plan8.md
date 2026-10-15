@@ -83,11 +83,11 @@ flowchart TD
 
 ## 📋 Task Checklist
 
-- [ ] Implement `_check_verbatim_grounding` in `src/ingestion/quality_scorer.py`.
-- [ ] Implement `_check_pure_total_math` in `src/ingestion/quality_scorer.py`.
-- [ ] Extend `TableHealthReport` with new diagnostic fields.
-- [ ] Update `tests/test_table_health.py` with comprehensive test cases.
-- [ ] Run `pytest tests/test_table_health.py` and ensure 100% pass rate.
-- [ ] Update `scripts/test_pdf_chunking.py` to display lexical and math health.
-- [ ] Update documentation in `docs/CHUNKING_AND_INGESTION_ARCHITECTURE.md`.
-- [ ] Commit and push changes with clean git history.
+- [x] Implement `_check_verbatim_grounding` in `src/ingestion/quality_scorer.py`.
+- [x] Implement `_check_pure_total_math` in `src/ingestion/quality_scorer.py`.
+- [x] Extend `TableHealthReport` with new diagnostic fields (`grounding_ratio`, `math_reconciled`).
+- [x] Update `tests/test_table_health.py` with comprehensive test cases.
+- [x] Run `pytest tests/test_table_health.py` and ensure 100% pass rate.
+- [x] Update `scripts/test_pdf_chunking.py` to display lexical and math health.
+- [x] Update documentation in `docs/CHUNKING_AND_INGESTION_ARCHITECTURE.md`.
+- [x] Commit and push changes with clean git history.

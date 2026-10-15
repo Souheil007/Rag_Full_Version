@@ -49,9 +49,17 @@ Documents are parsed into a hierarchical tree of typed nodes (`DocumentTree`):
    - Measures non-printable character ratio, word validity ratio, symbol cluster noise, and line fragmentation.
    - Computes $Q_{score} \in [0.0, 1.0]$. Flags documents with $Q_{score} < 0.65$ as degraded.
 2. **Table Structural Sanity (`TableSanityChecker`)**:
-   - Detects column inversion / alignment skew (e.g., when questions are pushed to the last column and short boolean answers to the first).
-   - Detects missing/dropped cell ratios and jagged row geometry.
-   - Computes a per-table health score $\in [0.0, 1.0]$ and issues explicit repair flags.
+   - **Column Alignment Skew**: Detects inverted columns (e.g., when questions are pushed to the last column and short boolean answers to the first).
+   - **Geometry Voids**: Detects high empty-cell ratios ($> 25\%$) and jagged row counts.
+3. **Verbatim Source Grounding (Lexical Sanity)**:
+   - Direct cross-reference against the raw PDF text layer via `pypdfium2` (running in $< 2\text{ ms}$).
+   - Normalizes currency symbols, commas, and parentheses, verifying whether extracted table tokens actually exist on the source page.
+   - Flags tables with grounding ratio $< 85\%$ as degraded (catching dropped digits and OCR hallucinations).
+4. **Pure Total Math Reconciliation (Mathematical Sanity)**:
+   - Detects tables with unambiguous single `Total` or `Sum` rows.
+   - Accounting-aware numerical parser: treats parentheses `(150,000)` as negative deductions, removes commas, and detaches footnote markers (`35.91 1`).
+   - Verifies column sums against totals within published rounding tolerance ($\pm 2.0$).
+   - **Defensive Design**: Tables with multi-tier nested subtotals (e.g. Subtotal 1 + Subtotal 2 = Grand Total) are intentionally bypassed from arithmetic summation to prevent false-alarm cascades from double-counting.
 
 ### Stage 4: VLM Table Repairer (`src/chunking/table_repairer.py`)
 - **The 95/5 Production Rule**: 95% of tables are processed locally for free. Only the ~5% of broken tables that fail sanity checks are routed to a Vision-Language Model.
